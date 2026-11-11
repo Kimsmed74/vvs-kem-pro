@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { PROSJEKT_PRESETS, type ProsjektData } from '../../../data/prosjekter';
 import { EKSEMPEL_BEREDER, beregnBereder, type Utstyrslinje } from '../../../engine/bereder';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
 import FagRapportModal from '../common/FagRapportModal';
-import { Kort, Knapp, Resultat, TallFelt } from '../../common/ui';
+import { Kort, Knapp, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 
 interface Props {
   prosjekt?: ProsjektData;
@@ -153,23 +153,31 @@ export default function Bereder({
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono">{fmt(l.antall * l.kwhPerEnhet, 3)}</td>
                     <td className="px-1 py-1.5 text-center">
-                      <button
-                        type="button"
-                        aria-label={`Slett ${l.navn}`}
-                        title="Slett utstyrslinje (krever bekreftelse)"
-                        onClick={() =>
-                          bekreftSlett({
-                            tittel: 'Slette utstyrslinje fra berederberegning?',
-                            elementNavn: `${l.navn} (${l.antall} stk × ${l.kwhPerEnhet} kWh)`,
-                            beskrivelse: `Er du sikker på at du vil slette «${l.navn}» fra varmtvannsbehovet?`,
-                            bekreftTekst: '🗑️ Slett utstyr',
-                            onBekreft: () => oppdaterLinjer(linjer.filter((_, idx) => idx !== i)),
-                          })
-                        }
-                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <RadSorteringsKnapper
+                          indeks={i}
+                          totalt={linjer.length}
+                          navn={l.navn}
+                          onFlytt={(idx, retning) => oppdaterLinjer(flyttIArray(linjer, idx, retning))}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Slett ${l.navn}`}
+                          title="Slett utstyrslinje (krever bekreftelse)"
+                          onClick={() =>
+                            bekreftSlett({
+                              tittel: 'Slette utstyrslinje fra berederberegning?',
+                              elementNavn: `${l.navn} (${l.antall} stk × ${l.kwhPerEnhet} kWh)`,
+                              beskrivelse: `Er du sikker på at du vil slette «${l.navn}» fra varmtvannsbehovet?`,
+                              bekreftTekst: '🗑️ Slett utstyr',
+                              onBekreft: () => oppdaterLinjer(linjer.filter((_, idx) => idx !== i)),
+                            })
+                          }
+                          className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

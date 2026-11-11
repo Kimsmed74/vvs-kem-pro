@@ -12,8 +12,10 @@ import {
 import { analyserFilerMedGeminiVision } from '../lib/gemini';
 import { slaaOppAdresseOgKoteIKartverket } from '../lib/kartverket';
 import type { Innstillinger } from '../lib/lagring';
+import { flyttIArray } from '../lib/format';
 import { useBekreftSlett } from './common/BekreftSlettModal';
 import Modal from './common/Modal';
+import { RadSorteringsKnapper } from './common/ui';
 
 export interface Skjema {
   navn: string;
@@ -514,25 +516,33 @@ export default function ProsjektDialog({
           <div className="mt-1 space-y-2">
             {f.gulv.map((g, i) => (
               <div key={i} className="grid grid-cols-12 items-center gap-2">
-                <input aria-label="Navn" className={`${inputKlasse} col-span-6 sm:col-span-7 mt-0`} value={g.navn} onChange={(e) => sett('gulv', f.gulv.map((x, j) => (j === i ? { ...x, navn: e.target.value } : x)))} />
+                <input aria-label="Navn" className={`${inputKlasse} col-span-5 sm:col-span-6 mt-0`} value={g.navn} onChange={(e) => sett('gulv', f.gulv.map((x, j) => (j === i ? { ...x, navn: e.target.value } : x)))} />
                 <input aria-label="Kote" placeholder="Kote (m)" className={`${inputKlasse} col-span-4 mt-0 text-right font-mono`} value={g.kote} onChange={(e) => sett('gulv', f.gulv.map((x, j) => (j === i ? { ...x, kote: e.target.value } : x)))} />
-                <button
-                  type="button"
-                  aria-label="Fjern rad"
-                  title="Slett gulv/sluk-rad (krever bekreftelse)"
-                  className="col-span-2 sm:col-span-1 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-300"
-                  onClick={() =>
-                    bekreftSlett({
-                      tittel: 'Fjerne gulv-/slukkote?',
-                      elementNavn: `${g.navn || 'Gulv/sluk'} (${g.kote ? `Kote +${g.kote}` : 'tom kote'})`,
-                      beskrivelse: 'Er du sikker på at du vil slette denne gulv-/slukraden fra prosjektets kotedata?',
-                      bekreftTekst: '🗑️ Fjern rad',
-                      onBekreft: () => sett('gulv', f.gulv.filter((_, j) => j !== i)),
-                    })
-                  }
-                >
-                  ✕
-                </button>
+                <div className="col-span-3 sm:col-span-2 flex items-center justify-end gap-1">
+                  <RadSorteringsKnapper
+                    indeks={i}
+                    totalt={f.gulv.length}
+                    navn={g.navn || 'etasje'}
+                    onFlytt={(idx, retning) => sett('gulv', flyttIArray(f.gulv, idx, retning))}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Fjern rad"
+                    title="Slett gulv/sluk-rad (krever bekreftelse)"
+                    className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-300"
+                    onClick={() =>
+                      bekreftSlett({
+                        tittel: 'Fjerne gulv-/slukkote?',
+                        elementNavn: `${g.navn || 'Gulv/sluk'} (${g.kote ? `Kote +${g.kote}` : 'tom kote'})`,
+                        beskrivelse: 'Er du sikker på at du vil slette denne gulv-/slukraden fra prosjektets kotedata?',
+                        bekreftTekst: '🗑️ Fjern rad',
+                        onBekreft: () => sett('gulv', f.gulv.filter((_, j) => j !== i)),
+                      })
+                    }
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             ))}
             <button type="button" className="min-h-[44px] rounded-lg bg-slate-700 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-600" onClick={() => sett('gulv', [...f.gulv, { navn: `Etasje ${f.gulv.length + 1}`, kote: '' }])}>
@@ -561,26 +571,34 @@ export default function ProsjektDialog({
               <div className="mt-1 space-y-2">
                 {f.flater.map((x, i) => (
                   <div key={i} className="grid grid-cols-12 items-center gap-2">
-                    <input aria-label="Flate" className={`${inputKlasse} col-span-4 sm:col-span-5 mt-0`} value={x.navn} onChange={(e) => sett('flater', f.flater.map((y, j) => (j === i ? { ...y, navn: e.target.value } : y)))} />
-                    <input aria-label="Areal" placeholder="m²" className={`${inputKlasse} col-span-3 mt-0 text-right font-mono`} value={x.areal} onChange={(e) => sett('flater', f.flater.map((y, j) => (j === i ? { ...y, areal: e.target.value } : y)))} />
-                    <input aria-label="φ" placeholder="φ" className={`${inputKlasse} col-span-3 mt-0 text-right font-mono`} value={x.phi} onChange={(e) => sett('flater', f.flater.map((y, j) => (j === i ? { ...y, phi: e.target.value } : y)))} />
-                    <button
-                      type="button"
-                      aria-label="Fjern flate"
-                      title="Slett overvannsflate (krever bekreftelse)"
-                      className="col-span-2 sm:col-span-1 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-300"
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Fjerne overvannsflate?',
-                          elementNavn: `${x.navn || 'Flate'} (${x.areal ? `${x.areal} m²` : 'tomt areal'})`,
-                          beskrivelse: 'Er du sikker på at du vil slette denne overvannsflaten fra prosjektet?',
-                          bekreftTekst: '🗑️ Fjern flate',
-                          onBekreft: () => sett('flater', f.flater.filter((_, j) => j !== i)),
-                        })
-                      }
-                    >
-                      ✕
-                    </button>
+                    <input aria-label="Flate" className={`${inputKlasse} col-span-4 sm:col-span-4 mt-0`} value={x.navn} onChange={(e) => sett('flater', f.flater.map((y, j) => (j === i ? { ...y, navn: e.target.value } : y)))} />
+                    <input aria-label="Areal" placeholder="m²" className={`${inputKlasse} col-span-3 sm:col-span-3 mt-0 text-right font-mono`} value={x.areal} onChange={(e) => sett('flater', f.flater.map((y, j) => (j === i ? { ...y, areal: e.target.value } : y)))} />
+                    <input aria-label="φ" placeholder="φ" className={`${inputKlasse} col-span-2 sm:col-span-3 mt-0 text-right font-mono`} value={x.phi} onChange={(e) => sett('flater', f.flater.map((y, j) => (j === i ? { ...y, phi: e.target.value } : y)))} />
+                    <div className="col-span-3 sm:col-span-2 flex items-center justify-end gap-1">
+                      <RadSorteringsKnapper
+                        indeks={i}
+                        totalt={f.flater.length}
+                        navn={x.navn || 'flate'}
+                        onFlytt={(idx, retning) => sett('flater', flyttIArray(f.flater, idx, retning))}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Fjern flate"
+                        title="Slett overvannsflate (krever bekreftelse)"
+                        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-300"
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Fjerne overvannsflate?',
+                            elementNavn: `${x.navn || 'Flate'} (${x.areal ? `${x.areal} m²` : 'tomt areal'})`,
+                            beskrivelse: 'Er du sikker på at du vil slette denne overvannsflaten fra prosjektet?',
+                            bekreftTekst: '🗑️ Fjern flate',
+                            onBekreft: () => sett('flater', f.flater.filter((_, j) => j !== i)),
+                          })
+                        }
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                 ))}
                 <button type="button" className="min-h-[44px] rounded-lg bg-slate-700 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-600" onClick={() => sett('flater', [...f.flater, { navn: 'Ny flate', areal: '', phi: '0,9' }])}>

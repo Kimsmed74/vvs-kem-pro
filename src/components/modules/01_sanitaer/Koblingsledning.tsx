@@ -8,11 +8,11 @@ import {
   ugunstigsteKrets,
   type KoblingsStrekk,
 } from '../../../engine/sanitaer';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
 import FagRapportModal from '../common/FagRapportModal';
-import { Kort, Knapp, Merkelapp, Resultat, TallFelt } from '../../common/ui';
+import { Kort, Knapp, Merkelapp, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 
 interface Props {
   prosjekt?: ProsjektData;
@@ -152,23 +152,31 @@ export default function Koblingsledning({ prosjekt, melding }: Props) {
                     {fmt(b.kretsTap)} {i === ugunstigst && <Merkelapp type="advarsel">ugunstigste</Merkelapp>}
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <button
-                      type="button"
-                      aria-label={`Slett ${rader[i].navn}`}
-                      title="Slett tappested (krever bekreftelse)"
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Slette tappested / koblingsledning?',
-                          elementNavn: `${rader[i].navn} (${rader[i].dim} mm)`,
-                          beskrivelse: `Er du sikker på at du vil slette tappestedet «${rader[i].navn}» fra koblingsledningstabellen?`,
-                          bekreftTekst: '🗑️ Slett tappested',
-                          onBekreft: () => setRader((r) => r.filter((_, idx) => idx !== i)),
-                        })
-                      }
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <RadSorteringsKnapper
+                        indeks={i}
+                        totalt={rader.length}
+                        navn={rader[i].navn}
+                        onFlytt={(idx, retning) => setRader((prev) => flyttIArray(prev, idx, retning))}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Slett ${rader[i].navn}`}
+                        title="Slett tappested (krever bekreftelse)"
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Slette tappested / koblingsledning?',
+                            elementNavn: `${rader[i].navn} (${rader[i].dim} mm)`,
+                            beskrivelse: `Er du sikker på at du vil slette tappestedet «${rader[i].navn}» fra koblingsledningstabellen?`,
+                            bekreftTekst: '🗑️ Slett tappested',
+                            onBekreft: () => setRader((r) => r.filter((_, idx) => idx !== i)),
+                          })
+                        }
+                        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

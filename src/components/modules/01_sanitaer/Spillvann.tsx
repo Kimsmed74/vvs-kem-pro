@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { PROSJEKT_PRESETS, type ProsjektData } from '../../../data/prosjekter';
 import { maksKapasitet, spillvannQdim, spillvannQs, type Ledningstype } from '../../../engine/avlop';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
 import FagRapportModal from '../common/FagRapportModal';
-import { Kort, Knapp, Merkelapp, TallFelt } from '../../common/ui';
+import { Kort, Knapp, Merkelapp, RadSorteringsKnapper, TallFelt } from '../../common/ui';
 
 interface Rad {
   id: string;
@@ -187,23 +187,31 @@ export default function Spillvann({ prosjekt, melding }: Props) {
                       : <Merkelapp type="feil">For liten (maks {fmt(beregnet[i].maks, 1)} l/s)</Merkelapp>}
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <button
-                      type="button"
-                      aria-label={`Slett ${r.id}`}
-                      title="Slett spillvannsstrekk (krever bekreftelse)"
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Slette spillvannsstrekk?',
-                          elementNavn: `${r.id} (DN ${r.dim}, ${r.type})`,
-                          beskrivelse: `Er du sikker på at du vil slette spillvannsstrekket «${r.id}» fra tabellen?`,
-                          bekreftTekst: '🗑️ Slett strekk',
-                          onBekreft: () => setRader((x) => x.filter((_, idx) => idx !== i)),
-                        })
-                      }
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <RadSorteringsKnapper
+                        indeks={i}
+                        totalt={rader.length}
+                        navn={r.id}
+                        onFlytt={(idx, retning) => setRader((prev) => flyttIArray(prev, idx, retning))}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Slett ${r.id}`}
+                        title="Slett spillvannsstrekk (krever bekreftelse)"
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Slette spillvannsstrekk?',
+                            elementNavn: `${r.id} (DN ${r.dim}, ${r.type})`,
+                            beskrivelse: `Er du sikker på at du vil slette spillvannsstrekket «${r.id}» fra tabellen?`,
+                            bekreftTekst: '🗑️ Slett strekk',
+                            onBekreft: () => setRader((x) => x.filter((_, idx) => idx !== i)),
+                          })
+                        }
+                        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

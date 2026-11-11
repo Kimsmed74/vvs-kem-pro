@@ -9,9 +9,9 @@ import {
   type Flate,
 } from '../../../engine/va';
 import type { ProsjektData } from '../../../data/prosjekter';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
-import { Kort, Merkelapp, Resultat, TallFelt } from '../../common/ui';
+import { Kort, Merkelapp, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
 import KoterRapportModal from './KoterRapportModal';
 
@@ -314,23 +314,31 @@ export default function Koter({
                       : <Merkelapp type="feil">⛔ {fmt(r.mangel)} m for lavt – pumpestasjon eller tilbakestrømningssikring</Merkelapp>}
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <button
-                      type="button"
-                      aria-label={`Slett ${e.navn}`}
-                      title="Slett etasje/sone (krever bekreftelse)"
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Slette etasje / slukkote?',
-                          elementNavn: `${e.navn} (Kote +${fmt(e.kote)})`,
-                          beskrivelse: `Er du sikker på at du vil fjerne «${e.navn}» fra koteregnskapet?`,
-                          bekreftTekst: '🗑️ Slett rad',
-                          onBekreft: () => oppdaterEtasjeListe(etasjer.filter((_, idx) => idx !== i)),
-                        })
-                      }
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <RadSorteringsKnapper
+                        indeks={i}
+                        totalt={rader.length}
+                        navn={e.navn}
+                        onFlytt={(idx, retning) => oppdaterEtasjeListe(flyttIArray(etasjer, idx, retning))}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Slett ${e.navn}`}
+                        title="Slett etasje/sone (krever bekreftelse)"
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Slette etasje / slukkote?',
+                            elementNavn: `${e.navn} (Kote +${fmt(e.kote)})`,
+                            beskrivelse: `Er du sikker på at du vil fjerne «${e.navn}» fra koteregnskapet?`,
+                            bekreftTekst: '🗑️ Slett rad',
+                            onBekreft: () => oppdaterEtasjeListe(etasjer.filter((_, idx) => idx !== i)),
+                          })
+                        }
+                        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -390,25 +398,33 @@ export default function Koter({
           {flater.map((f, i) => (
             <div key={i} className="grid grid-cols-1 items-end gap-2 rounded-lg border border-slate-800/80 bg-slate-950/40 p-2.5 sm:grid-cols-12 sm:border-0 sm:bg-transparent sm:p-0">
               <label className="sm:col-span-4">Flate<input value={f.navn} onChange={(e) => oppdaterFlate(i, { navn: e.target.value })} className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-2 font-semibold outline-none focus:border-emerald-500" /></label>
-              <label className="sm:col-span-4">Areal (m²)<TallFelt className="mt-1 w-full" ariaLabel="Areal" verdi={f.areal} onChange={(n) => oppdaterFlate(i, { areal: n })} /></label>
+              <label className="sm:col-span-3">Areal (m²)<TallFelt className="mt-1 w-full" ariaLabel="Areal" verdi={f.areal} onChange={(n) => oppdaterFlate(i, { areal: n })} /></label>
               <label className="sm:col-span-3">φ<TallFelt className="mt-1 w-full" ariaLabel="Avrenningsfaktor" verdi={f.phi} onChange={(n) => oppdaterFlate(i, { phi: n })} /></label>
-              <button
-                type="button"
-                aria-label={`Slett ${f.navn}`}
-                title="Slett overvannsflate (krever bekreftelse)"
-                onClick={() =>
-                  bekreftSlett({
-                    tittel: 'Slette overvannsflate?',
-                    elementNavn: `${f.navn} (${fmt(f.areal, 0)} m², φ=${fmt(f.phi, 2)})`,
-                    beskrivelse: `Er du sikker på at du vil slette overvannsflaten «${f.navn}» fra overvannsberegningen?`,
-                    bekreftTekst: '🗑️ Slett flate',
-                    onBekreft: () => oppdaterFlateListe(flater.filter((_, idx) => idx !== i)),
-                  })
-                }
-                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-400 sm:col-span-1"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-1 sm:col-span-2 justify-end sm:justify-start">
+                <RadSorteringsKnapper
+                  indeks={i}
+                  totalt={flater.length}
+                  navn={f.navn}
+                  onFlytt={(idx, retning) => oppdaterFlateListe(flyttIArray(flater, idx, retning))}
+                />
+                <button
+                  type="button"
+                  aria-label={`Slett ${f.navn}`}
+                  title="Slett overvannsflate (krever bekreftelse)"
+                  onClick={() =>
+                    bekreftSlett({
+                      tittel: 'Slette overvannsflate?',
+                      elementNavn: `${f.navn} (${fmt(f.areal, 0)} m², φ=${fmt(f.phi, 2)})`,
+                      beskrivelse: `Er du sikker på at du vil slette overvannsflaten «${f.navn}» fra overvannsberegningen?`,
+                      bekreftTekst: '🗑️ Slett flate',
+                      onBekreft: () => oppdaterFlateListe(flater.filter((_, idx) => idx !== i)),
+                    })
+                  }
+                  className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-400"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
           <button type="button" onClick={() => oppdaterFlateListe([...flater, { navn: 'Ny flate', areal: 100, phi: 0.9 }])} className="min-h-[44px] rounded-lg bg-slate-700 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-600">+ Legg til flate</button>

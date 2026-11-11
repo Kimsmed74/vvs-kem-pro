@@ -129,3 +129,49 @@ export function Resultat({
     </div>
   );
 }
+
+/**
+ * Standardiserte opp/ned-knapper (↑ og ↓) for rader i dynamiske tabeller.
+ * Sørger for konsistent sorterings-UI, tilgjengelighet (aria) og touch-vennlighet på tvers av hele appen.
+ */
+export function RadSorteringsKnapper({
+  indeks,
+  totalt,
+  onFlytt,
+  navn = 'rad',
+  className = '',
+}: {
+  indeks: number;
+  totalt: number;
+  onFlytt: (indeks: number, retning: -1 | 1) => void;
+  navn?: string;
+  className?: string;
+}) {
+  const kanFlytteOpp = indeks > 0;
+  const kanFlytteNed = indeks < totalt - 1;
+
+  return (
+    <div className={`inline-flex items-center gap-1 ${className}`}>
+      <button
+        type="button"
+        disabled={!kanFlytteOpp}
+        onClick={() => onFlytt(indeks, -1)}
+        aria-label={`Flytt ${navn} opp`}
+        title={kanFlytteOpp ? 'Flytt opp (↑)' : 'Øverste posisjon'}
+        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs font-bold text-slate-300 transition hover:border-slate-500 hover:bg-slate-700 hover:text-white disabled:pointer-events-none disabled:border-slate-800/60 disabled:bg-slate-900/40 disabled:text-slate-600"
+      >
+        ↑
+      </button>
+      <button
+        type="button"
+        disabled={!kanFlytteNed}
+        onClick={() => onFlytt(indeks, 1)}
+        aria-label={`Flytt ${navn} ned`}
+        title={kanFlytteNed ? 'Flytt ned (↓)' : 'Nederste posisjon'}
+        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-xs font-bold text-slate-300 transition hover:border-slate-500 hover:bg-slate-700 hover:text-white disabled:pointer-events-none disabled:border-slate-800/60 disabled:bg-slate-900/40 disabled:text-slate-600"
+      >
+        ↓
+      </button>
+    </div>
+  );
+}

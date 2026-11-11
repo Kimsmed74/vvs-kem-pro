@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ProsjektData } from '../../../data/prosjekter';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
-import { Kort, Resultat, TallFelt } from '../../common/ui';
+import { Kort, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 import {
   DELTA_T_PRESETS,
   HYDRONISKE_VENTILER,
@@ -436,22 +436,30 @@ ${resultat.strenger
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <button
-                      type="button"
-                      aria-label={`Slett ${s.navn}`}
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Slette kurs?',
-                          elementNavn: s.navn,
-                          beskrivelse: 'Er du sikker på at du vil fjerne denne kursen fra innreguleringstabellen?',
-                          bekreftTekst: '🗑️ Slett kurs',
-                          onBekreft: () => setStrenger((prev) => prev.filter((x) => x.id !== s.id)),
-                        })
-                      }
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950 hover:text-rose-300"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <RadSorteringsKnapper
+                        indeks={resultat.strenger.findIndex((x) => x.id === s.id)}
+                        totalt={resultat.strenger.length}
+                        navn={s.navn}
+                        onFlytt={(idx, retning) => setStrenger((prev) => flyttIArray(prev, idx, retning))}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Slett ${s.navn}`}
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Slette kurs?',
+                            elementNavn: s.navn,
+                            beskrivelse: 'Er du sikker på at du vil fjerne denne kursen fra innreguleringstabellen?',
+                            bekreftTekst: '🗑️ Slett kurs',
+                            onBekreft: () => setStrenger((prev) => prev.filter((x) => x.id !== s.id)),
+                          })
+                        }
+                        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950 hover:text-rose-300"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

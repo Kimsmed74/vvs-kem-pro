@@ -41,7 +41,7 @@ import {
   vurderKotekontrollStatus,
 } from './qa';
 import { genererTrykkfallMarkdown } from './rapportMarkdown';
-import { rensLatexFormler } from './format';
+import { flyttIArray, rensLatexFormler } from './format';
 import {
   beregnProsjektFremdrift,
   genererFremdriftOgTidMarkdown,
@@ -1133,6 +1133,39 @@ describe('Global prosjekt-state, vanntrykk vs. koter og > 6,0 bar kontroll', () 
       const ider = epost.mottakerKontroll.alleUtkast.map((u) => u.id);
       expect(ider).toEqual(['kommune', 'prosjektgruppe', 'byggherre']);
       expect(new Set(epost.mottakerKontroll.alleUtkast.map((u) => u.epostTekst)).size).toBe(3);
+    });
+
+    describe('flyttIArray (rekkefølgestyring)', () => {
+      it('flytter et element nedover i arrayet (retning 1)', () => {
+        const input = ['A', 'B', 'C'];
+        const res = flyttIArray(input, 0, 1);
+        expect(res).toEqual(['B', 'A', 'C']);
+        expect(input).toEqual(['A', 'B', 'C']); // Ingen mutasjon
+      });
+
+      it('flytter et element oppover i arrayet (retning -1)', () => {
+        const input = ['A', 'B', 'C'];
+        const res = flyttIArray(input, 2, -1);
+        expect(res).toEqual(['A', 'C', 'B']);
+      });
+
+      it('håndterer grensetilfelle: kan ikke flytte indeks 0 oppover', () => {
+        const input = ['A', 'B', 'C'];
+        const res = flyttIArray(input, 0, -1);
+        expect(res).toEqual(['A', 'B', 'C']);
+      });
+
+      it('håndterer grensetilfelle: kan ikke flytte siste indeks nedover', () => {
+        const input = ['A', 'B', 'C'];
+        const res = flyttIArray(input, 2, 1);
+        expect(res).toEqual(['A', 'B', 'C']);
+      });
+
+      it('håndterer ugyldige indekser uten å kaste feil', () => {
+        const input = ['A', 'B'];
+        expect(flyttIArray(input, -1, 1)).toEqual(['A', 'B']);
+        expect(flyttIArray(input, 5, -1)).toEqual(['A', 'B']);
+      });
     });
   });
 });

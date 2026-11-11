@@ -13,10 +13,10 @@ import {
   type Trykkbudsjett,
 } from '../../../engine/sanitaer';
 import type { ProsjektAnalyse } from '../../../lib/analyse';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { genererTrykkfallMarkdown } from '../../../lib/rapportMarkdown';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
-import { Kort, Knapp, Merkelapp, Resultat, TallFelt } from '../../common/ui';
+import { Kort, Knapp, Merkelapp, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
 import TrykkfallRapportModal from './TrykkfallRapportModal';
 
@@ -368,23 +368,31 @@ export default function Trykkfall({
                     <td className="px-1 py-1.5"><TallFelt className="w-16" ariaLabel="l" verdi={rader[i].l} onChange={(n) => oppdater(i, { l: n })} /></td>
                     <td className="bg-slate-900/50 px-2 py-1.5 text-right font-mono font-extrabold">{fmt(b.rxl)}</td>
                     <td className="px-2 py-1.5 text-center">
-                      <button
-                        type="button"
-                        aria-label={`Slett ${rader[i].navn}`}
-                        title="Slett rørstrekk (krever bekreftelse)"
-                        onClick={() =>
-                          bekreftSlett({
-                            tittel: 'Slette rørstrekk?',
-                            elementNavn: `${rader[i].navn} (${rader[i].dim} mm, l = ${rader[i].l} m)`,
-                            beskrivelse: `Er du sikker på at du vil slette rørstrekket «${rader[i].navn}» fra trykkfallstabellen?`,
-                            bekreftTekst: '🗑️ Slett rørstrekk',
-                            onBekreft: () => setRader((r) => r.filter((_, idx) => idx !== i)),
-                          })
-                        }
-                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <RadSorteringsKnapper
+                          indeks={i}
+                          totalt={rader.length}
+                          navn={rader[i].navn}
+                          onFlytt={(idx, retning) => setRader((prev) => flyttIArray(prev, idx, retning))}
+                        />
+                        <button
+                          type="button"
+                          aria-label={`Slett ${rader[i].navn}`}
+                          title="Slett rørstrekk (krever bekreftelse)"
+                          onClick={() =>
+                            bekreftSlett({
+                              tittel: 'Slette rørstrekk?',
+                              elementNavn: `${rader[i].navn} (${rader[i].dim} mm, l = ${rader[i].l} m)`,
+                              beskrivelse: `Er du sikker på at du vil slette rørstrekket «${rader[i].navn}» fra trykkfallstabellen?`,
+                              bekreftTekst: '🗑️ Slett rørstrekk',
+                              onBekreft: () => setRader((r) => r.filter((_, idx) => idx !== i)),
+                            })
+                          }
+                          className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

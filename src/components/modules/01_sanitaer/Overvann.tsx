@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { PROSJEKT_PRESETS, type ProsjektData } from '../../../data/prosjekter';
 import { overvann } from '../../../engine/avlop';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
 import FagRapportModal from '../common/FagRapportModal';
-import { Knapp, Kort, Resultat, TallFelt } from '../../common/ui';
+import { Knapp, Kort, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 
 interface Flate {
   navn: string;
@@ -149,21 +149,29 @@ export default function Overvann({
                   aria-label="Flatenavn"
                   className="min-h-[44px] flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-100 outline-none focus:border-emerald-500"
                 />
-                <button
-                  type="button"
-                  onClick={() =>
-                    bekreftSlett({
-                      tittel: 'Slette overvannsflate?',
-                      elementNavn: `${f.navn} (${fmt(r.areal, 0)} m², Q = ${fmt(r.q, 1)} l/s)`,
-                      beskrivelse: `Er du sikker på at du vil slette overvannsflaten «${f.navn}»?`,
-                      bekreftTekst: '🗑️ Slett flate',
-                      onBekreft: () => oppdaterFlater(flater.filter((_, idx) => idx !== i)),
-                    })
-                  }
-                  className="inline-flex min-h-[44px] items-center rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900/60"
-                >
-                  🗑️ Slett
-                </button>
+                <div className="flex items-center gap-1">
+                  <RadSorteringsKnapper
+                    indeks={i}
+                    totalt={flater.length}
+                    navn={f.navn}
+                    onFlytt={(idx, retning) => oppdaterFlater(flyttIArray(flater, idx, retning))}
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      bekreftSlett({
+                        tittel: 'Slette overvannsflate?',
+                        elementNavn: `${f.navn} (${fmt(r.areal, 0)} m², Q = ${fmt(r.q, 1)} l/s)`,
+                        beskrivelse: `Er du sikker på at du vil slette overvannsflaten «${f.navn}»?`,
+                        bekreftTekst: '🗑️ Slett flate',
+                        onBekreft: () => oppdaterFlater(flater.filter((_, idx) => idx !== i)),
+                      })
+                    }
+                    className="inline-flex min-h-[38px] items-center rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900/60"
+                  >
+                    🗑️ Slett
+                  </button>
+                </div>
               </div>
               <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 sm:grid-cols-2">
                 <label>Lengde (m)<TallFelt className="mt-1 w-full" ariaLabel="Lengde" verdi={f.lengde} onChange={(n) => oppdater(i, { lengde: n })} /></label>

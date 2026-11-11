@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ProsjektData } from '../data/prosjekter';
 import { analyserProsjekt, type ProsjektAnalyse } from '../lib/analyse';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../lib/format';
 import {
   FAG_FASER,
   STANDARD_RIV_TIMEPRIS_KR,
@@ -18,6 +18,7 @@ import type { AppTilstand, Innstillinger, ProsjektTilstand } from '../lib/lagrin
 import FremdriftRapportModal from './common/FremdriftRapportModal';
 import GlobalRapportBar from './common/GlobalRapportBar';
 import { useBekreftSlett } from './common/BekreftSlettModal';
+import { RadSorteringsKnapper } from './common/ui';
 
 export type DashbordFane = 'alle_prosjekter' | 'mangelliste' | 'tidssporing';
 
@@ -222,6 +223,21 @@ export default function ProsjektDashbord({
         });
         melding('🗑️ Timepost slettet.');
       },
+    });
+  };
+
+  // Flytte rekkefølge på en timepost
+  const handleFlyttTimepost = (indeks: number, retning: -1 | 1) => {
+    onOppdaterProsjektTilstand((forrige) => {
+      const gjeldendeTs = forrige.tidssporing ?? tidssporing;
+      const nyListe = flyttIArray(gjeldendeTs.manuelleTimer, indeks, retning);
+      return {
+        ...forrige,
+        tidssporing: {
+          ...gjeldendeTs,
+          manuelleTimer: nyListe,
+        },
+      };
     });
   };
 
@@ -943,7 +959,7 @@ export default function ProsjektDashbord({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/80">
-                    {tidssporing.manuelleTimer.map((post) => {
+                    {tidssporing.manuelleTimer.map((post, i) => {
                       const faseDef = FAG_FASER.find((f) => f.id === post.fase);
                       return (
                         <tr key={post.id} className="hover:bg-slate-800/30">
@@ -959,14 +975,22 @@ export default function ProsjektDashbord({
                             {fmt(post.timer, 1)} t
                           </td>
                           <td className="p-2.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleSlettTimepost(post.id)}
-                              title="Slett timepost"
-                              className="rounded px-2 py-1 text-[11px] text-rose-400 hover:bg-rose-950/80"
-                            >
-                              🗑️
-                            </button>
+                            <div className="flex items-center justify-center gap-1">
+                              <RadSorteringsKnapper
+                                indeks={i}
+                                totalt={tidssporing.manuelleTimer.length}
+                                navn="timepost"
+                                onFlytt={(idx, retning) => handleFlyttTimepost(idx, retning)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSlettTimepost(post.id)}
+                                title="Slett timepost"
+                                className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-rose-400 hover:bg-rose-950/80"
+                              >
+                                🗑️
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       );

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { ProsjektData } from '../../../data/prosjekter';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../../lib/format';
 import { useBekreftSlett } from '../../common/BekreftSlettModal';
 import GlobalRapportBar from '../../common/GlobalRapportBar';
-import { Kort, Resultat, TallFelt } from '../../common/ui';
+import { Kort, RadSorteringsKnapper, Resultat, TallFelt } from '../../common/ui';
 import {
   VENTILASJON_VENTILER,
   beregnVentilasjonsInnregulering,
@@ -409,22 +409,30 @@ ${resultat.ventiler
                     )}
                   </td>
                   <td className="px-2 py-1.5 text-center">
-                    <button
-                      type="button"
-                      aria-label={`Slett ${v.rom}`}
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Slette ventil / målerad?',
-                          elementNavn: `${v.rom} (${v.dimensjon})`,
-                          beskrivelse: 'Er du sikker på at du vil fjerne denne ventilen fra innreguleringsprotokollen?',
-                          bekreftTekst: '🗑️ Slett ventil',
-                          onBekreft: () => setVentiler((prev) => prev.filter((x) => x.id !== v.id)),
-                        })
-                      }
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950 hover:text-rose-300"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <RadSorteringsKnapper
+                        indeks={resultat.ventiler.findIndex((x) => x.id === v.id)}
+                        totalt={resultat.ventiler.length}
+                        navn={v.rom}
+                        onFlytt={(idx, retning) => setVentiler((prev) => flyttIArray(prev, idx, retning))}
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Slett ${v.rom}`}
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Slette ventil / målerad?',
+                            elementNavn: `${v.rom} (${v.dimensjon})`,
+                            beskrivelse: 'Er du sikker på at du vil fjerne denne ventilen fra innreguleringsprotokollen?',
+                            bekreftTekst: '🗑️ Slett ventil',
+                            onBekreft: () => setVentiler((prev) => prev.filter((x) => x.id !== v.id)),
+                          })
+                        }
+                        className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950 hover:text-rose-300"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

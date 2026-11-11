@@ -15,14 +15,14 @@ import {
   type SprinklerFareklasse,
 } from '../../engine/fagmoduler';
 import type { ProsjektAnalyse } from '../../lib/analyse';
-import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../../lib/format';
+import { fmt, flyttIArray, kopierTilUtklippstavle, lastNedTekst } from '../../lib/format';
 import type { OverstyringInfo } from '../../lib/lagring';
 import type { Modul } from '../../modules';
 import GatekeeperPanel from '../GatekeeperPanel';
 import TrykkOgKoteVeileder from '../TrykkOgKoteVeileder';
 import { useBekreftSlett } from '../common/BekreftSlettModal';
 import GlobalRapportBar from '../common/GlobalRapportBar';
-import { Knapp, Kort, Merkelapp, Resultat, TallFelt } from '../common/ui';
+import { Knapp, Kort, Merkelapp, RadSorteringsKnapper, Resultat, TallFelt } from '../common/ui';
 import HydroniskInnregulering from './02_varme/HydroniskInnregulering';
 import VentilasjonInnregulering from './03_ventilasjon/VentilasjonInnregulering';
 import FagRapportModal from './common/FagRapportModal';
@@ -1617,22 +1617,32 @@ export default function FagModulVisning({
                           {fmt(alt.totalNaaverdi25AarKr, 0)} kr {erBest && <Merkelapp type="ok">Lavest LCC</Merkelapp>}
                         </td>
                         <td className="px-2 py-1.5 text-center">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              bekreftSlett({
-                                tittel: 'Slette LCC-alternativ?',
-                                elementNavn: lccAlternativer[i].navn,
-                                beskrivelse: `Er du sikker på at du vil slette «${lccAlternativer[i].navn}» fra 25-års LCC-kalkylen?`,
-                                bekreftTekst: '🗑️ Slett alternativ',
-                                onBekreft: () =>
-                                  setLccAlternativer((prev) => prev.filter((_, idx) => idx !== i)),
-                              })
-                            }
-                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                          >
-                            ✕
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <RadSorteringsKnapper
+                              indeks={i}
+                              totalt={lccAlternativer.length}
+                              navn={lccAlternativer[i].navn}
+                              onFlytt={(idx, retning) =>
+                                setLccAlternativer((prev) => flyttIArray(prev, idx, retning))
+                              }
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                bekreftSlett({
+                                  tittel: 'Slette LCC-alternativ?',
+                                  elementNavn: lccAlternativer[i].navn,
+                                  beskrivelse: `Er du sikker på at du vil slette «${lccAlternativer[i].navn}» fra 25-års LCC-kalkylen?`,
+                                  bekreftTekst: '🗑️ Slett alternativ',
+                                  onBekreft: () =>
+                                    setLccAlternativer((prev) => prev.filter((_, idx) => idx !== i)),
+                                })
+                              }
+                              className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1804,22 +1814,32 @@ export default function FagModulVisning({
                       <td className="px-3 py-2 text-slate-200">{rad.beskrivelse}</td>
                       <td className="px-3 py-2 text-slate-400">{rad.fag}</td>
                       <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            bekreftSlett({
-                              tittel: 'Slette TFM-komponent?',
-                              elementNavn: `${rad.kode} (${rad.beskrivelse})`,
-                              beskrivelse: `Er du sikker på at du vil slette TFM-komponenten «${rad.kode}» fra listen?`,
-                              bekreftTekst: '🗑️ Slett TFM-rad',
-                              onBekreft: () =>
-                                setTfmListe((prev) => prev.filter((_, idx) => idx !== i)),
-                            })
-                          }
-                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <RadSorteringsKnapper
+                            indeks={i}
+                            totalt={tfmListe.length}
+                            navn={rad.kode}
+                            onFlytt={(idx, retning) =>
+                              setTfmListe((prev) => flyttIArray(prev, idx, retning))
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              bekreftSlett({
+                                tittel: 'Slette TFM-komponent?',
+                                elementNavn: `${rad.kode} (${rad.beskrivelse})`,
+                                beskrivelse: `Er du sikker på at du vil slette TFM-komponenten «${rad.kode}» fra listen?`,
+                                bekreftTekst: '🗑️ Slett TFM-rad',
+                                onBekreft: () =>
+                                  setTfmListe((prev) => prev.filter((_, idx) => idx !== i)),
+                              })
+                            }
+                            className="inline-flex min-h-[38px] min-w-[34px] sm:min-w-[30px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                          >
+                            ✕
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

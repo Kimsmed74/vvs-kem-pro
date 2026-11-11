@@ -99,3 +99,20 @@ export function rensLatexFormler(tekst: string): string {
 
   return s.trim();
 }
+
+/**
+ * Bytter plass på et element i en liste (flytt opp eller ned).
+ * Retning: -1 = opp (mot indeks 0), 1 = ned (mot slutten).
+ * Returnerer en ny array for trygg React-state oppdatering.
+ */
+export function flyttIArray<T>(liste: readonly T[], indeks: number, retning: -1 | 1): T[] {
+  const nyIndeks = indeks + retning;
+  if (indeks < 0 || indeks >= liste.length || nyIndeks < 0 || nyIndeks >= liste.length) {
+    return [...liste];
+  }
+  const kopi = [...liste];
+  const temp = kopi[indeks];
+  kopi[indeks] = kopi[nyIndeks];
+  kopi[nyIndeks] = temp;
+  return kopi;
+}
