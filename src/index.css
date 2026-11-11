@@ -1,0 +1,276 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  @apply bg-slate-900 text-slate-100 antialiased;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+}
+
+/* ==========================================================================
+   VVS KEM PRO – TVUNGET UTSKRIFTSFORMAT & PDF-STIL (PRINT CSS)
+   SINTEF Byggforsk 553.102 · TEK17 · NS-EN 14336 · NS-EN 12599 · NS-EN 12050
+   ========================================================================== */
+@media print {
+  /* A4 stående utskriftsformat med profesjonelle RIV-marger */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 10mm 12mm 10mm;
+  }
+
+  /* Tving nøyaktig fargegjengivelse uavhengig av brukerens 'Bakgrunnsgrafikk'-innstilling */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Tving hvit bakgrunn og mørke skriftfarger */
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    font-size: 11pt !important;
+  }
+
+  /* Når en rapportmodal er åpen: Skjul hele appens bakgrunnsinnhold (#root) */
+  body.vvs-rapport-aapen > #root,
+  body:has(.vvs-rapport-modal) > #root,
+  body:has([role="dialog"]) > #root {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Skjul alle toppmenyer, handlingsknapper, lukkekryss og navigasjon */
+  .print\:hidden,
+  [data-print-meny="true"],
+  [data-print-skjul="true"],
+  header,
+  nav,
+  aside,
+  button,
+  .sticky {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Modal-beholder: Frigjør fra fixed overlay til naturlig flytende dokument */
+  .vvs-rapport-modal,
+  [role="dialog"] {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    overflow: visible !important;
+  }
+
+  /* Ramme rundt rapportarket */
+  .vvs-rapport-ramme {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Selve A4-rapportarket */
+  .vvs-rapport-ark,
+  #vvs-a4-rapport-utskrift,
+  #koter-a4-rapport-utskrift,
+  #fag-a4-rapport-utskrift,
+  #hydronisk-a4-rapport-utskrift,
+  #ventilasjon-a4-rapport-utskrift {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* ==========================================================================
+     STATUSFARGE-BEVARING FOR PRINT (GRØNN / RØD / GUL / BLÅ)
+     Sikrer at farger ikke forsvinner ved utskrift til PDF eller papir
+     ========================================================================== */
+
+  /* Grønn status (OK / Godkjent / Lav hastighet ≤ 2.0 m/s / Selvfall OK / Balansert) */
+  .bg-emerald-50,
+  [data-status="ok"].bg-emerald-50 {
+    background-color: #ecfdf5 !important;
+    color: #064e3b !important;
+    border-color: #10b981 !important;
+  }
+  .bg-emerald-100,
+  [data-status="ok"].bg-emerald-100,
+  span.bg-emerald-100 {
+    background-color: #d1fae5 !important;
+    color: #064e3b !important;
+    border-color: #6ee7b7 !important;
+  }
+  .text-emerald-700,
+  .text-emerald-800,
+  .text-emerald-900,
+  .text-emerald-950 {
+    color: #064e3b !important;
+  }
+  .border-emerald-200,
+  .border-emerald-300,
+  .border-emerald-500,
+  .border-emerald-600 {
+    border-color: #059669 !important;
+  }
+
+  /* Rød status (Avvik / Underdimensjonert / Høy hastighet > 2.0 m/s / Pumpekrav NS-EN 12050 / Feil) */
+  .bg-rose-50,
+  [data-status="avvik"].bg-rose-50,
+  [data-status="alarm"].bg-rose-50 {
+    background-color: #fff1f2 !important;
+    color: #881337 !important;
+    border-color: #f43f5e !important;
+  }
+  .bg-rose-100,
+  [data-status="avvik"].bg-rose-100,
+  [data-status="alarm"].bg-rose-100,
+  span.bg-rose-100 {
+    background-color: #ffe4e6 !important;
+    color: #881337 !important;
+    border-color: #fda4af !important;
+  }
+  .text-rose-700,
+  .text-rose-800,
+  .text-rose-900,
+  .text-rose-950 {
+    color: #881337 !important;
+  }
+  .border-rose-200,
+  .border-rose-300,
+  .border-rose-500,
+  .border-rose-600 {
+    border-color: #e11d48 !important;
+  }
+
+  /* Gul/Rav status (Forbehold / Justering / Akseptabelt avvik / Indekskurs) */
+  .bg-amber-50,
+  [data-status="advarsel"].bg-amber-50,
+  [data-status="forbehold"].bg-amber-50 {
+    background-color: #fffbeb !important;
+    color: #78350f !important;
+    border-color: #f59e0b !important;
+  }
+  .bg-amber-100,
+  [data-status="advarsel"].bg-amber-100,
+  span.bg-amber-100 {
+    background-color: #fef3c7 !important;
+    color: #78350f !important;
+    border-color: #fcd34d !important;
+  }
+  .text-amber-700,
+  .text-amber-800,
+  .text-amber-900,
+  .text-amber-950 {
+    color: #78350f !important;
+  }
+  .border-amber-200,
+  .border-amber-300,
+  .border-amber-400,
+  .border-amber-500 {
+    border-color: #d97706 !important;
+  }
+
+  /* Blå / Cyan status (Lufttilluft, trykk, forutsetninger) */
+  .bg-cyan-50 {
+    background-color: #ecfeff !important;
+    color: #164e63 !important;
+    border-color: #06b6d4 !important;
+  }
+  .bg-cyan-100 {
+    background-color: #cffafe !important;
+    color: #164e63 !important;
+    border-color: #67e8f9 !important;
+  }
+  .text-cyan-700, .text-cyan-800, .text-cyan-900, .text-cyan-950 {
+    color: #164e63 !important;
+  }
+  .bg-blue-50 {
+    background-color: #eff6ff !important;
+    color: #1e3a8a !important;
+    border-color: #3b82f6 !important;
+  }
+  .text-blue-700, .text-blue-800, .text-blue-900, .text-blue-950 {
+    color: #1e3a8a !important;
+  }
+
+  /* Nøkkeltallskort og bakgrunnsfelter */
+  .bg-slate-50 {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+  .bg-slate-100 {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+  }
+
+  /* Toppdekorasjon gradient */
+  .bg-gradient-to-r {
+    background: #0284c7 !important;
+    background-color: #0284c7 !important;
+  }
+
+  /* Tabeller & Sideskift (Undgå avkuttede rader og repeter kolonneoverskrifter) */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+  thead {
+    display: table-header-group !important;
+  }
+  tfoot {
+    display: table-footer-group !important;
+  }
+  tr,
+  .nobreak,
+  .page-break-avoid,
+  .grid > div {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
