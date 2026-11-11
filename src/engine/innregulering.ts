@@ -184,8 +184,11 @@ export function beregnHydroniskInnregulering(
     // Forinnstilling
     let forinnstillingTekst = '';
     if (ventilType === 'PICV' && funnetVentil?.qNomLh) {
-      const prosent = Math.min(100, Math.max(10, Math.round((qProsjLh / funnetVentil.qNomLh) * 100)));
-      forinnstillingTekst = `${prosent} %`;
+      const raaProsent = Math.round((qProsjLh / funnetVentil.qNomLh) * 100);
+      forinnstillingTekst =
+        raaProsent > 100
+          ? `>100 % (Underdim., ${raaProsent} %)`
+          : `${Math.max(10, raaProsent)} %`;
     } else {
       const kvs = funnetVentil?.kvs ?? s.valgtKvs;
       if (kvs > 0) {
@@ -577,9 +580,10 @@ export function beregnKondensOgDuggpunkt(inn: KondensInput): KondensResultat {
   const d1 = Math.max(0.005, inn.rorDiameterMm / 1000);
   const s = Math.max(0.001, inn.isoTykkelseMm / 1000);
   const d2 = d1 + 2 * s;
+  const tryggLambda = Math.max(0.005, Number.isFinite(inn.lambdaIso) ? inn.lambdaIso : 0.036);
 
   // Termisk motstand for sylindrisk isolasjon: R_iso = ln(d2/d1) / (2 * pi * lambda) [m·K/W]
-  const rIso = Math.log(d2 / d1) / (2 * Math.PI * inn.lambdaIso);
+  const rIso = Math.log(d2 / d1) / (2 * Math.PI * tryggLambda);
   // Termisk overgangsmotstand utvendig: R_se = 1 / (pi * d2 * alfa) [m·K/W]
   const rSe = 1 / (Math.PI * d2 * alfa);
   const rTot = rIso + rSe;
@@ -597,7 +601,7 @@ export function beregnKondensOgDuggpunkt(inn: KondensInput): KondensResultat {
   if (kondensfare || sikkerhetsmarginK < 1.5) {
     for (let testS = inn.isoTykkelseMm; testS <= 100; testS += 2) {
       const td2 = d1 + 2 * (testS / 1000);
-      const trIso = Math.log(td2 / d1) / (2 * Math.PI * inn.lambdaIso);
+      const trIso = Math.log(td2 / d1) / (2 * Math.PI * tryggLambda);
       const trSe = 1 / (Math.PI * td2 * alfa);
       const tq = deltaT / (trIso + trSe);
       const tOverflate = inn.omgivelseTempC - tq * trSe;

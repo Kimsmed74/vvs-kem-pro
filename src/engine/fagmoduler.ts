@@ -385,7 +385,7 @@ export function beregnSprinklerOgBranntrommel(inn: {
   const minDyseTrykkBar = Math.max(0.5, Math.pow(qDyseLmin / k, 2));
 
   // TEK17 § 11-16 / NS-EN 671-1: maks slangelengde 30 m + kasteradius 5 m = 35 m reell ganglinje (vi bruker også 25 m ved mye innredning/dører)
-  const maksTillattGanglinjeM = Math.min(30, inn.slangeLengdeM) + 5;
+  const maksTillattGanglinjeM = Math.min(30, Math.max(0, inn.slangeLengdeM)) + 5;
   const ganglinjeOk = inn.ganglinjeTilFjernesteHjorneM <= maksTillattGanglinjeM;
 
   const trykkOkForSprinkler =

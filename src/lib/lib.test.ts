@@ -1116,11 +1116,23 @@ describe('Global prosjekt-state, vanntrykk vs. koter og > 6,0 bar kontroll', () 
       expect(md).toContain('Kim Jørgensen | Rørleggermester & Rådgivende Ingeniør VVS (RIV)');
       expect(md).toContain('Forus Teknologipark');
       expect(md).toContain('20,5 t'); // 6.5 + 14.0 = 20.5 timer
+      expect(md).toContain('140 t'); // Sum av budsjettTimerStandard i FAG_FASER
       expect(md).toContain('Agent 16: QA-port');
       expect(md).toContain('1,85 s');
       expect(md).toContain('ca. 45 min');
       expect(md).not.toContain('$$');
       expect(md).not.toContain('\\text');
+    });
+
+    it('produserer tre distinkte mottakerutkast i Gatekeeper mottakerKontroll.alleUtkast', () => {
+      const p = tomtProsjekt('tre-utkast');
+      p.navn = 'Test Prosjekt AS';
+      const a = analyserProsjekt(p, 0.95);
+      const r = evaluerGatekeeper(p, a, {}, 0);
+      const epost = lagKommuneForesporselEpost(p, r, undefined, a);
+      const ider = epost.mottakerKontroll.alleUtkast.map((u) => u.id);
+      expect(ider).toEqual(['kommune', 'prosjektgruppe', 'byggherre']);
+      expect(new Set(epost.mottakerKontroll.alleUtkast.map((u) => u.epostTekst)).size).toBe(3);
     });
   });
 });

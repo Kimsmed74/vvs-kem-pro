@@ -281,11 +281,16 @@ export default function FagModulVisning({
     setFareklasse(velgStandardFareklasse(prosjekt.bygningstype));
   }, [prosjekt.bygningstype]);
 
-  const korrigertTilgjengeligTrykkBar =
+  const kommunaltTrykkBrannBar =
     prosjekt.vanntrykk.dynamiskBar !== null
-      ? Math.max(0, Math.round((prosjekt.vanntrykk.dynamiskBar - h.hydrostatiskTapBar) * 100) / 100)
+      ? prosjekt.vanntrykk.dynamiskBar
       : prosjekt.vanntrykk.statiskBar !== null
-      ? Math.max(0, Math.round((prosjekt.vanntrykk.statiskBar - h.hydrostatiskTapBar) * 100) / 100)
+      ? prosjekt.vanntrykk.statiskBar
+      : null;
+
+  const korrigertTilgjengeligTrykkBar =
+    kommunaltTrykkBrannBar !== null
+      ? Math.max(0, Math.round((kommunaltTrykkBrannBar - h.hydrostatiskTapBar) * 100) / 100)
       : null;
 
   const brannRes = useMemo(
@@ -309,9 +314,9 @@ export default function FagModulVisning({
         dyseTrykkBar: brannRes.minDyseTrykkBar,
         lofteHoydeM: h.geodetiskLoftehoydeM,
         rorfriksjonBar: 1.0,
-        tilgjengeligTrykkBar: korrigertTilgjengeligTrykkBar ?? 4.0,
+        tilgjengeligTrykkBar: kommunaltTrykkBrannBar ?? 4.0,
       }),
-    [fareklasse, brannRes.vannmengdeLmin, brannRes.minDyseTrykkBar, h.geodetiskLoftehoydeM, korrigertTilgjengeligTrykkBar]
+    [fareklasse, brannRes.vannmengdeLmin, brannRes.minDyseTrykkBar, h.geodetiskLoftehoydeM, kommunaltTrykkBrannBar]
   );
 
   // ==========================================================================
@@ -587,23 +592,26 @@ export default function FagModulVisning({
     L.push('');
     L.push('## 2. Hydraulisk Q/p-Trykkregnskap');
     L.push(`- Geodetisk løftehøyde H_geo: ${fmt(h.geodetiskLoftehoydeM, 1)} m (${fmt(sprinklerHydRes.geodetiskTapBar, 2)} bar)`);
-    L.push(`- Estimert rør- og armaturfriksjon: 1,00 bar`);
+    L.push(`- Estimert rør- og armaturfriksjon: ${fmt(sprinklerHydRes.rorFriksjonBar, 2)} bar`);
+    L.push(`- BA-tilbakeslagsventil (NS-EN 1717 kat. 4): ${fmt(sprinklerHydRes.baVentilTapBar, 2)} bar`);
     L.push(`- Minste dysetrykk: ${fmt(brannRes.minDyseTrykkBar, 2)} bar`);
     L.push(`- Totalt nødvendig inntakstrykk: ${fmt(sprinklerHydRes.totaltTrykkbehovBar, 2)} bar`);
-    L.push(`- Tilgjengelig trykk fra kommunen: ${korrigertTilgjengeligTrykkBar !== null ? `${fmt(korrigertTilgjengeligTrykkBar, 2)} bar` : 'Ikke oppgitt'}`);
+    L.push(`- Tilgjengelig trykk fra kommunen: ${kommunaltTrykkBrannBar !== null ? `${fmt(kommunaltTrykkBrannBar, 2)} bar` : 'Ikke oppgitt (estimert 4,00 bar)'}`);
     L.push(`- Differanse / Margin: ${sprinklerHydRes.marginBar >= 0 ? '+' : ''}${fmt(sprinklerHydRes.marginBar, 2)} bar`);
     L.push(`- Krav om sprinklerpumpe: ${sprinklerHydRes.kreverPumpe ? '🚨 JA – Sprinklerpumpe og vanntank påkrevd iht. NS-EN 12845' : '✅ NEI – Direkte tilkobling tilstrekkelig'}`);
     L.push('');
     L.push('## 3. Branntromler iht. TEK17 § 11-16');
     L.push(`- Ganglinje til fjerneste hjørne: ${ganglinjeM} m`);
     L.push(`- Slangelengde: ${slangeLengdeM} m`);
-    L.push(`- Maks tillatt ganglinje: 35 m (slangelengde + 5 m stråle)`);
+    L.push(`- Maks tillatt ganglinje: ${brannRes.maksTillattGanglinjeM} m (slangelengde + 5 m stråle)`);
     L.push(`- Dekningskontroll: ${brannRes.ganglinjeOk ? '✅ OK – Heldekkende slukkeradius' : '🚨 FOR LANG – Ekstra branntrommel påkrevd'}`);
     L.push('');
     L.push('## 4. Konklusjon & Godkjenning');
     L.push(sprinklerHydRes.konklusjon);
     return L.join('\n');
-  }, [prosjekt, datoStreng, fareklasse, kFaktor, brannRes, h, sprinklerHydRes, korrigertTilgjengeligTrykkBar, ganglinjeM, slangeLengdeM]);
+  }, [prosjekt, datoStreng, fareklasse, kFaktor, brannRes, h, sprinklerHydRes, kommunaltTrykkBrannBar, ganglinjeM, slangeLengdeM]);
+
+  const tryggBra = Math.max(1, bra);
 
   const lccMarkdown = useMemo(() => {
     const L: string[] = [];
@@ -629,15 +637,15 @@ export default function FagModulVisning({
     L.push(`- Bygningsdeler yttervegger/tak/gulv/vinduer: ${fmt(transRes.deler, 1)} W/K`);
     L.push(`- Kuldebroer: ${fmt(transRes.kuldebro, 1)} W/K`);
     L.push(`- Totalt transmisjonsvarmetapstall: ${fmt(transRes.total, 1)} W/K`);
-    L.push(`- Spesifikt varmetap per m² BRA: ${fmt(transRes.total / bra, 2)} W/(m²·K)`);
+    L.push(`- Spesifikt varmetap per m² BRA: ${fmt(transRes.total / tryggBra, 2)} W/(m²·K)`);
     if (lccNs3454.besteAlternativ) {
       L.push(`- NS 3454 referansemodell: Lavest levetidskostnad oppnås med ${lccNs3454.besteAlternativ.navn}`);
     }
     L.push('');
     L.push('## 3. Anbefaling & BREEAM-NOR Konklusjon');
-    L.push(`✅ Anbefalt løsning over 25 år er «${besteLcc?.navn}» med laveste totale nåverdi på ${fmt(besteLcc?.totalNaaverdi25AarKr ?? 0, 0)} kr (${fmt((besteLcc?.totalNaaverdi25AarKr ?? 0) / bra, 0)} kr/m² BRA).`);
+    L.push(`✅ Anbefalt løsning over 25 år er «${besteLcc?.navn}» med laveste totale nåverdi på ${fmt(besteLcc?.totalNaaverdi25AarKr ?? 0, 0)} kr (${fmt((besteLcc?.totalNaaverdi25AarKr ?? 0) / tryggBra, 0)} kr/m² BRA).`);
     return L.join('\n');
-  }, [prosjekt, datoStreng, bra, realrente, strompris, lccRes, besteLcc, transRes, lccNs3454]);
+  }, [prosjekt, datoStreng, bra, tryggBra, realrente, strompris, lccRes, besteLcc, transRes, lccNs3454]);
 
   const lovverkMarkdown = useMemo(() => {
     const L: string[] = [];
@@ -651,7 +659,7 @@ export default function FagModulVisning({
     L.push(`- TEK17 § 15-5 Vanntrykk (Maks 6,0 bar på armatur): ${h.kravTrykkreduksjonsventil ? '🚨 KREVER TRYKKREDUKSJON (> 6,0 bar)' : `✅ OK (${fmt(prosjekt.vanntrykk.statiskBar ?? 0, 1)} bar ≤ 6,0 bar)`}`);
     L.push(`- TEK17 § 15-6 / § 15-8 Tilbakeslagssikring: ${analyse.lov2Status === 'ok' ? '✅ OK (Selvfall over ITR)' : '🚨 KREVER PUMPESTASJON (NS-EN 12050)'}`);
     L.push(`- TEK17 § 14-4(2) Areal Varmesentral: ${analyse.varmesentral.ok ? '✅ OK' : '🚨 FOR LITE AREAL'} (Avsatt: ${prosjekt.tekniskRomM2 ?? 0} m², Krav: ${minAreaVarmesentral(bra) ?? 0} m²)`);
-    L.push(`- TEK17 § 11-16 Slukkeutstyr / Branntromler: ${brannRes.ganglinjeOk ? '✅ OK – Heldekkende ganglinje ≤ 35 m' : '🚨 FOR LANG GANGLINJE'}`);
+    L.push(`- TEK17 § 11-16 Slukkeutstyr / Branntromler: ${brannRes.ganglinjeOk ? `✅ OK – Heldekkende ganglinje ≤ ${brannRes.maksTillattGanglinjeM} m` : '🚨 FOR LANG GANGLINJE'}`);
     L.push(`- TEK17 § 13-2 / § 13-3 Ventilasjon: Prosjektert luftmengde dekker person- og emisjonsbelastning.`);
     L.push('');
     L.push('## 2. Samsvarsvurdering & Faglig Erklæring');
@@ -669,12 +677,13 @@ export default function FagModulVisning({
     L.push(`**Oppvarmet BRA:** ${fmt(bra, 0)} m² | **Bygningstype:** ${prosjekt.bygningstype}`);
     L.push('');
     const bunnledningKote =
-      (prosjekt.koter.itrKum ?? 0) +
-      (prosjekt.koter.stikkLengde && prosjekt.koter.fallNevner
-        ? prosjekt.koter.stikkLengde / prosjekt.koter.fallNevner
-        : 0);
+      analyse.minKoteUtgang ??
+      (prosjekt.koter.ibrKum ?? 0) +
+        (prosjekt.koter.stikkLengde && prosjekt.koter.fallNevner
+          ? prosjekt.koter.stikkLengde / prosjekt.koter.fallNevner
+          : 0);
     L.push('## 1. Tverrfaglig Systemoversikt (VVS KEM PRO)');
-    L.push(`- 310 Sanitær: Inntakstrykk ${fmt(globaltInntaksTrykkBar, 2)} bar, Kotebalanse ITR + L·fall = ${fmt(bunnledningKote, 2)} moh.`);
+    L.push(`- 310 Sanitær: Inntakstrykk ${fmt(globaltInntaksTrykkBar, 2)} bar, Kotebalanse IBR + L·fall = C +${fmt(bunnledningKote, 2)} moh.`);
     L.push(`- 320 Varme: Termisk ekspansjon ${ekspansjon.anbefaltStandardKarLiter} l, Varmesentral ${prosjekt.tekniskRomM2 ?? 0} m² (Krav: ${minAreaVarmesentral(bra) ?? 0} m²).`);
     L.push(`- 360 Ventilasjon: Luftmengde ${fmt(ventRes.dimensjonerendeM3h, 0)} m³/h, Vifteeffekt ${fmt(vifteEffektKw, 1)} kW (SFP ${fmt(ventRes.sfpKwPerM3s, 2)} kW/(m³/s)).`);
     L.push(`- 380 Brann/Sprinkler: Fareklasse ${fareklasse}, Vannbehov ${fmt(brannRes.vannmengdeLmin, 0)} l/min, ${sprinklerHydRes.kreverPumpe ? 'Sprinklerpumpe påkrevd' : 'Direkte tilknyttet nett'}.`);
@@ -690,7 +699,7 @@ export default function FagModulVisning({
     L.push('## 3. Sluttgodkjenning & Overlevering til Byggherre');
     L.push('Anlegget overleveres med komplett dokumentasjon, innreguleringsprotokoller, FDV-instrukser og samsvarserklæring.');
     return L.join('\n');
-  }, [prosjekt, datoStreng, bra, globaltInntaksTrykkBar, ekspansjon, ventRes, vifteEffektKw, fareklasse, brannRes, sprinklerHydRes, besteLcc, tfmListe]);
+  }, [prosjekt, datoStreng, bra, analyse.minKoteUtgang, globaltInntaksTrykkBar, ekspansjon, ventRes, vifteEffektKw, fareklasse, brannRes, sprinklerHydRes, besteLcc, tfmListe]);
 
   return (
     <div className="space-y-6">
@@ -748,11 +757,11 @@ export default function FagModulVisning({
       {/* ==================================================================== */}
       {modul.id === 'varme' && (
         <div className="space-y-6">
-          <div className="flex border-b border-slate-700 bg-slate-900/50 rounded-t-xl px-2 pt-2">
+          <div className="flex flex-wrap gap-1 border-b border-slate-700 bg-slate-900/50 rounded-t-xl px-2 pt-2">
             <button
               type="button"
               onClick={() => setVarmeFane('innregulering')}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
+              className={`min-h-[44px] px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
                 varmeFane === 'innregulering'
                   ? 'border-emerald-500 text-emerald-300 bg-slate-900'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -763,7 +772,7 @@ export default function FagModulVisning({
             <button
               type="button"
               onClick={() => setVarmeFane('ekspansjon')}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
+              className={`min-h-[44px] px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
                 varmeFane === 'ekspansjon'
                   ? 'border-emerald-500 text-emerald-300 bg-slate-900'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -893,11 +902,11 @@ export default function FagModulVisning({
       {/* ==================================================================== */}
       {modul.id === 'ventilasjon' && (
         <div className="space-y-6">
-          <div className="flex border-b border-slate-700 bg-slate-900/50 rounded-t-xl px-2 pt-2">
+          <div className="flex flex-wrap gap-1 border-b border-slate-700 bg-slate-900/50 rounded-t-xl px-2 pt-2">
             <button
               type="button"
               onClick={() => setVentFane('innregulering')}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
+              className={`min-h-[44px] px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
                 ventFane === 'innregulering'
                   ? 'border-cyan-500 text-cyan-300 bg-slate-900'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -908,7 +917,7 @@ export default function FagModulVisning({
             <button
               type="button"
               onClick={() => setVentFane('beregning')}
-              className={`px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
+              className={`min-h-[44px] px-4 py-2.5 text-xs font-bold border-b-2 transition rounded-t-lg ${
                 ventFane === 'beregning'
                   ? 'border-cyan-500 text-cyan-300 bg-slate-900'
                   : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
@@ -1086,7 +1095,7 @@ export default function FagModulVisning({
                   <TallFelt className="mt-1 w-full" ariaLabel="Krav resttrykk" verdi={kravResttrykkBar} onChange={setKravResttrykkBar} />
                 </label>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Resultat etikett="Nødvendig trykk" verdi={fmt(boosterRes.nodvendigTrykkBar, 2)} enhet="bar" />
                 <Resultat etikett="Nødvendig trykkløft" verdi={fmt(boosterRes.trykkLoftBar, 2)} enhet="bar" />
                 <Resultat
@@ -1098,7 +1107,7 @@ export default function FagModulVisning({
             </Kort>
 
             <Kort tittel="Sirkulasjonspumpe (Grundfos MAGNA3)" ikon="⚙️">
-              <div className="grid grid-cols-3 gap-3 text-xs text-slate-300">
+              <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 sm:grid-cols-3">
                 <label>
                   Volumstrøm Q (m³/h)
                   <TallFelt className="mt-1 w-full" ariaLabel="Volumstrøm" verdi={pumpeQM3h} onChange={setPumpeQM3h} />
@@ -1121,7 +1130,7 @@ export default function FagModulVisning({
                   </select>
                 </label>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Resultat etikett="Elektrisk effekt" verdi={fmt(pumpeRes.elektriskEffektW, 0)} enhet="W" />
                 <Resultat etikett="Årlig energi" verdi={fmt(pumpeRes.aarligEnergiKwh, 0)} enhet="kWh/år" />
                 <Resultat etikett="Anbefalt modell" verdi={pumpeRes.anbefaltModell} tone="ok" />
@@ -1361,10 +1370,18 @@ export default function FagModulVisning({
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <Resultat
                   etikett="Ganglinjekontroll"
-                  verdi={brannRes.ganglinjeOk ? 'OK (≤ 35 m)' : 'FOR LANG (> 35 m)'}
+                  verdi={
+                    brannRes.ganglinjeOk
+                      ? `OK (≤ ${brannRes.maksTillattGanglinjeM} m)`
+                      : `FOR LANG (> ${brannRes.maksTillattGanglinjeM} m)`
+                  }
                   tone={brannRes.ganglinjeOk ? 'ok' : 'feil'}
                 />
-                <Resultat etikett="Slangedekning" verdi={`${slangeLengdeM + 5} m`} enhet="effektiv" />
+                <Resultat
+                  etikett="Slangedekning"
+                  verdi={`${brannRes.maksTillattGanglinjeM} m`}
+                  enhet="effektiv"
+                />
               </div>
             </Kort>
 
@@ -1374,16 +1391,17 @@ export default function FagModulVisning({
               className="lg:col-span-12"
             >
               <p className="mb-3 text-xs text-slate-400">
-                Hydraulisk trykktap beregnet mot koter: Geodetisk løft = {fmt(h.geodetiskLoftehoydeM, 1)} m ({fmt(sprinklerHydRes.geodetiskTapBar, 2)} bar).
+                Hydraulisk trykkbehov: Minste dysetrykk + rør-/armaturfriksjon (1,00 bar) + BA-tilbakeslagsventil ({fmt(sprinklerHydRes.baVentilTapBar, 2)} bar) + geodetisk løft ({fmt(h.geodetiskLoftehoydeM, 1)} m = {fmt(sprinklerHydRes.geodetiskTapBar, 2)} bar).
               </p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <Resultat etikett="Minste dysetrykk" verdi={fmt(brannRes.minDyseTrykkBar, 2)} enhet="bar" />
                 <Resultat etikett="Løftetrykk (koter)" verdi={fmt(sprinklerHydRes.geodetiskTapBar, 2)} enhet="bar" />
+                <Resultat etikett="BA-ventil (kat. 4)" verdi={fmt(sprinklerHydRes.baVentilTapBar, 2)} enhet="bar" />
                 <Resultat etikett="Nødvendig inntakstrykk" verdi={fmt(sprinklerHydRes.totaltTrykkbehovBar, 2)} enhet="bar" />
                 <Resultat
-                  etikett="Tilgjengelig trykk"
-                  verdi={korrigertTilgjengeligTrykkBar !== null ? fmt(korrigertTilgjengeligTrykkBar, 2) : 'Mangler trykk'}
-                  enhet={korrigertTilgjengeligTrykkBar !== null ? 'bar' : undefined}
+                  etikett="Tilgjengelig (inntak)"
+                  verdi={kommunaltTrykkBrannBar !== null ? fmt(kommunaltTrykkBrannBar, 2) : 'Mangler (est. 4,00)'}
+                  enhet={kommunaltTrykkBrannBar !== null ? 'bar' : undefined}
                 />
               </div>
 
@@ -1553,7 +1571,7 @@ export default function FagModulVisning({
                                 prev.map((x, idx) => (idx === i ? { ...x, navn: e.target.value } : x))
                               )
                             }
-                            className="w-60 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold text-slate-100"
+                            className="min-w-[160px] w-full rounded border border-slate-600 bg-slate-900 px-2 py-1.5 font-semibold text-slate-100 sm:w-60"
                           />
                         </td>
                         <td className="px-1 py-1.5">
@@ -1611,7 +1629,7 @@ export default function FagModulVisning({
                                   setLccAlternativer((prev) => prev.filter((_, idx) => idx !== i)),
                               })
                             }
-                            className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
                           >
                             ✕
                           </button>
@@ -1642,7 +1660,7 @@ export default function FagModulVisning({
           </Kort>
 
           <Kort tittel="NS 3031 Transmisjonsvarmetap Σ(U·A)" ikon="🌡️">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Resultat etikett="Bygningsdeler Σ(U·A)" verdi={fmt(transRes.deler, 1)} enhet="W/K" />
               <Resultat etikett="Kuldebroer" verdi={fmt(transRes.kuldebro, 1)} enhet="W/K" />
               <Resultat etikett="Totalt varmetapstall" verdi={fmt(transRes.total, 1)} enhet="W/K" tone="ok" />
@@ -1700,7 +1718,7 @@ export default function FagModulVisning({
             <p className="mb-3 text-xs text-slate-400">
               Format: <code>+Lokasjon =System.Løpenr -KomponentLøpenr %Typekode</code> iht. Statsbygg PA 0802 og tverrfaglig merkesystem.
             </p>
-            <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 sm:grid-cols-7">
+            <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 sm:grid-cols-4 lg:grid-cols-7">
               <label>
                 Lokasjon (+A)
                 <input
@@ -1798,7 +1816,7 @@ export default function FagModulVisning({
                                 setTfmListe((prev) => prev.filter((_, idx) => idx !== i)),
                             })
                           }
-                          className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
                         >
                           ✕
                         </button>
@@ -2124,9 +2142,9 @@ export default function FagModulVisning({
           { etikett: 'Minste dysetrykk', verdi: fmt(brannRes.minDyseTrykkBar, 2), enhet: 'bar' },
           { etikett: 'Nødvendig inntakstrykk', verdi: fmt(sprinklerHydRes.totaltTrykkbehovBar, 2), enhet: 'bar' },
           {
-            etikett: 'Tilgjengelig trykk fra nett',
-            verdi: korrigertTilgjengeligTrykkBar !== null ? fmt(korrigertTilgjengeligTrykkBar, 2) : 'Ikke oppgitt',
-            enhet: korrigertTilgjengeligTrykkBar !== null ? 'bar' : undefined,
+            etikett: 'Tilgjengelig trykk (inntak)',
+            verdi: kommunaltTrykkBrannBar !== null ? fmt(kommunaltTrykkBrannBar, 2) : 'Mangler (est. 4,00)',
+            enhet: 'bar',
           },
           {
             etikett: 'Krav om sprinklerpumpe',
@@ -2154,12 +2172,16 @@ export default function FagModulVisning({
                 etikett: 'Geodetisk løftehøyde (ITK til øverste dyse)',
                 verdi: `${fmt(h.geodetiskLoftehoydeM, 1)} m (${fmt(sprinklerHydRes.geodetiskTapBar, 2)} bar)`,
               },
-              { etikett: 'Estimert rør- og armaturfriksjon', verdi: '1,00 bar' },
+              { etikett: 'Estimert rør- og armaturfriksjon', verdi: `${fmt(sprinklerHydRes.rorFriksjonBar, 2)} bar` },
+              { etikett: 'BA-tilbakeslagsventil (NS-EN 1717 kat. 4)', verdi: `${fmt(sprinklerHydRes.baVentilTapBar, 2)} bar` },
               { etikett: 'Minste dysetrykk', verdi: `${fmt(brannRes.minDyseTrykkBar, 2)} bar` },
               { etikett: 'Totalt nødvendig inntakstrykk', verdi: `${fmt(sprinklerHydRes.totaltTrykkbehovBar, 2)} bar` },
               {
                 etikett: 'Kommunalt vanntrykk (fra Steg 1)',
-                verdi: `${fmt(prosjekt.vanntrykk.dynamiskBar ?? prosjekt.vanntrykk.statiskBar ?? 0, 2)} bar`,
+                verdi:
+                  kommunaltTrykkBrannBar !== null
+                    ? `${fmt(kommunaltTrykkBrannBar, 2)} bar`
+                    : 'Ikke oppgitt (estimert 4,00 bar)',
               },
               {
                 etikett: 'Trykkmargin',
@@ -2172,7 +2194,10 @@ export default function FagModulVisning({
             rader: [
               { etikett: 'Maks ganglinje til fjerneste hjørne', verdi: `${ganglinjeM} meter` },
               { etikett: 'Slangelengde trommel', verdi: `${slangeLengdeM} meter` },
-              { etikett: 'Maksimal tillatt ganglinje (slangelengde + 5 m stråle)', verdi: '35 meter' },
+              {
+                etikett: 'Maksimal tillatt ganglinje (slangelengde + 5 m stråle)',
+                verdi: `${brannRes.maksTillattGanglinjeM} meter`,
+              },
               {
                 etikett: 'Vurdering',
                 verdi: brannRes.ganglinjeOk ? '✅ OK – Dekning ivaretatt' : '🚨 FOR LANG GANGLINJE – Krever ekstra branntrommel',
@@ -2204,7 +2229,7 @@ export default function FagModulVisning({
         nokkeltall={[
           { etikett: 'Beste LCC-alternativ', verdi: besteLcc?.navn?.split('(')[0]?.trim() ?? 'Alternativ', tone: 'ok' },
           { etikett: 'Laveste 25-års nåverdi', verdi: `${fmt(besteLcc?.totalNaaverdi25AarKr ?? 0, 0)} kr`, tone: 'ok' },
-          { etikett: 'LCC per m² BRA', verdi: `${fmt((besteLcc?.totalNaaverdi25AarKr ?? 0) / bra, 0)} kr/m²` },
+          { etikett: 'LCC per m² BRA', verdi: `${fmt((besteLcc?.totalNaaverdi25AarKr ?? 0) / tryggBra, 0)} kr/m²` },
           { etikett: 'Forutsatt strømpris', verdi: `${fmt(strompris, 2)} kr/kWh` },
           { etikett: 'Realrente', verdi: `${fmt(realrente, 1)} % p.a.` },
           { etikett: 'Totalt transmisjonstap', verdi: fmt(transRes.total, 1), enhet: 'W/K' },
@@ -2230,13 +2255,13 @@ export default function FagModulVisning({
               { etikett: 'Bygningsdeler (vegger, tak, gulv, vinduer)', verdi: `${fmt(transRes.deler, 1)} W/K` },
               { etikett: 'Kuldebroer (yttervegger/etasjeskillere)', verdi: `${fmt(transRes.kuldebro, 1)} W/K` },
               { etikett: 'Totalt transmisjonsvarmetapstall Σ(U·A)', verdi: `${fmt(transRes.total, 1)} W/K` },
-              { etikett: 'Spesifikt varmetapstall per m² BRA', verdi: `${fmt(transRes.total / bra, 2)} W/(m²·K)` },
+              { etikett: 'Spesifikt varmetapstall per m² BRA', verdi: `${fmt(transRes.total / tryggBra, 2)} W/(m²·K)` },
             ],
           },
         ]}
         konklusjon={{
           tittel: `Anbefalt konsept: ${besteLcc?.navn ?? 'Beste alternativ'}`,
-          tekst: `Gjennomført NS 3454 livssyklusberegning over 25 år med ${realrente} % kalkulasjonsrente og strømpris ${strompris} kr/kWh viser at «${besteLcc?.navn}» gir den laveste totale samfunnsøkonomiske kostnaden på ${fmt(besteLcc?.totalNaaverdi25AarKr ?? 0, 0)} kr (${fmt((besteLcc?.totalNaaverdi25AarKr ?? 0) / bra, 0)} kr/m² BRA). Dette konseptet tilfredsstiller BREEAM-NOR Mat 01 og gir optimal balanse mellom CAPEX og OPEX.`,
+          tekst: `Gjennomført NS 3454 livssyklusberegning over 25 år med ${realrente} % kalkulasjonsrente og strømpris ${strompris} kr/kWh viser at «${besteLcc?.navn}» gir den laveste totale samfunnsøkonomiske kostnaden på ${fmt(besteLcc?.totalNaaverdi25AarKr ?? 0, 0)} kr (${fmt((besteLcc?.totalNaaverdi25AarKr ?? 0) / tryggBra, 0)} kr/m² BRA). Dette konseptet tilfredsstiller BREEAM-NOR Mat 01 og gir optimal balanse mellom CAPEX og OPEX.`,
           ok: true,
         }}
         markdownTekst={lccMarkdown}
@@ -2273,7 +2298,7 @@ export default function FagModulVisning({
           },
           {
             etikett: 'TEK17 § 11-16 Slukkeutstyr',
-            verdi: brannRes.ganglinjeOk ? 'Ganglinje OK (≤ 35 m)' : 'For lang ganglinje',
+            verdi: brannRes.ganglinjeOk ? `Ganglinje OK (≤ ${brannRes.maksTillattGanglinjeM} m)` : 'For lang ganglinje',
             tone: brannRes.ganglinjeOk ? 'ok' : 'feil',
           },
         ]}
@@ -2312,7 +2337,7 @@ export default function FagModulVisning({
               },
               {
                 etikett: '§ 11-16 Manuell brannslukking',
-                verdi: `Branntrommel med ${slangeLengdeM} m slange dekker ganglinje på ${ganglinjeM} m (maks tillatt 35 m).`,
+                verdi: `Branntrommel med ${slangeLengdeM} m slange dekker ganglinje på ${ganglinjeM} m (maks tillatt ${brannRes.maksTillattGanglinjeM} m).`,
               },
             ],
           },

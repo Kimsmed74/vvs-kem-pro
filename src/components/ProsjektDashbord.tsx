@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ProsjektData } from '../data/prosjekter';
 import { analyserProsjekt, type ProsjektAnalyse } from '../lib/analyse';
 import { fmt, kopierTilUtklippstavle, lastNedTekst } from '../lib/format';
@@ -63,6 +63,10 @@ export default function ProsjektDashbord({
   const [filterType, setFilterType] = useState<'alle' | 'klare' | 'avvik' | 'bruker'>('alle');
   const [visRapportModal, setVisRapportModal] = useState<boolean>(false);
   const bekreftSlett = useBekreftSlett();
+
+  useEffect(() => {
+    setAktivFane(startFane);
+  }, [startFane]);
 
   // Skjema for ny timeføring
   const [nyDato, setNyDato] = useState<string>(() => new Date().toISOString().slice(0, 10));
@@ -304,7 +308,7 @@ export default function ProsjektDashbord({
       />
 
       {/* 5 Executive KPI-kort (Oversikt på tvers av prosjekter) */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-3.5 shadow-sm">
           <span className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
             📁 Prosjekter
@@ -374,11 +378,11 @@ export default function ProsjektDashbord({
       </div>
 
       {/* 3 Hovedfaner */}
-      <div className="flex overflow-x-auto border-b border-slate-800 touch-pan-x">
+      <div className="flex flex-wrap gap-1 border-b border-slate-800">
         <button
           type="button"
           onClick={() => setAktivFane('alle_prosjekter')}
-          className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition whitespace-nowrap ${
+          className={`flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
             aktivFane === 'alle_prosjekter'
               ? 'border-emerald-500 text-emerald-300 bg-emerald-950/20'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -391,7 +395,7 @@ export default function ProsjektDashbord({
         <button
           type="button"
           onClick={() => setAktivFane('mangelliste')}
-          className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition whitespace-nowrap ${
+          className={`flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
             aktivFane === 'mangelliste'
               ? 'border-amber-500 text-amber-300 bg-amber-950/20'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -406,7 +410,7 @@ export default function ProsjektDashbord({
         <button
           type="button"
           onClick={() => setAktivFane('tidssporing')}
-          className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition whitespace-nowrap ${
+          className={`flex min-h-[44px] items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
             aktivFane === 'tidssporing'
               ? 'border-indigo-500 text-indigo-300 bg-indigo-950/20'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -470,13 +474,13 @@ export default function ProsjektDashbord({
               </button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <input
                 type="text"
                 placeholder="🔍 Søk i prosjektnavn, sted, gnr..."
                 value={sokTekst}
                 onChange={(e) => setSokTekst(e.target.value)}
-                className="min-h-[38px] w-64 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none sm:w-64"
               />
             </div>
           </div>
@@ -546,7 +550,7 @@ export default function ProsjektDashbord({
                     </div>
 
                     {/* Delmål i prosjektet */}
-                    <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[10px]">
+                    <div className="mt-3 grid grid-cols-2 gap-2 text-center text-[10px] sm:grid-cols-4">
                       <div className="rounded border border-slate-800 bg-slate-950/60 p-1.5">
                         <span className="block text-slate-500">Underlag</span>
                         <strong className="text-slate-300">{f.underlagProsent} %</strong>
@@ -730,8 +734,8 @@ export default function ProsjektDashbord({
                         ) : alarm.tekst.includes('TRYKKREDUKSJON') ? (
                           <button
                             type="button"
-                            onClick={() => onNavigerTilModul('sanitaer', 'forbruksvann')}
-                            className="rounded bg-rose-800 px-2.5 py-1 text-xs font-bold text-white hover:bg-rose-700"
+                            onClick={() => onNavigerTilModul('sanitaer', 'trykkfall')}
+                            className="min-h-[38px] rounded bg-rose-800 px-2.5 py-1 text-xs font-bold text-white hover:bg-rose-700"
                           >
                             Gå til Trykkbudsjett
                           </button>
@@ -849,7 +853,7 @@ export default function ProsjektDashbord({
                   value={nyTimer}
                   onChange={(e) => setNyTimer(e.target.value)}
                   placeholder="f.eks. 3.5"
-                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-emerald-300 text-base sm:text-xs"
+                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-emerald-300"
                 />
               </div>
 
@@ -858,7 +862,7 @@ export default function ProsjektDashbord({
                 <select
                   value={nyFase}
                   onChange={(e) => setNyFase(e.target.value as FagFase)}
-                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white text-base sm:text-xs"
+                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white"
                 >
                   {FAG_FASER.map((f) => (
                     <option key={f.id} value={f.id}>
@@ -874,7 +878,7 @@ export default function ProsjektDashbord({
                   type="text"
                   value={nyUtforende}
                   onChange={(e) => setNyUtforende(e.target.value)}
-                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white text-base sm:text-xs"
+                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white"
                 />
               </div>
 
@@ -885,14 +889,14 @@ export default function ProsjektDashbord({
                   placeholder="f.eks. Dimensjonert trykkfall forbruksvann iht. Byggforsk 553.102, kontrollert rørføringer..."
                   value={nyBeskrivelse}
                   onChange={(e) => setNyBeskrivelse(e.target.value)}
-                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white placeholder-slate-500 text-base sm:text-xs"
+                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white placeholder-slate-500"
                 />
               </div>
 
               <div className="flex items-end sm:col-span-1">
                 <button
                   type="submit"
-                  className="min-h-[44px] w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500"
+                  className="min-h-[42px] w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500"
                 >
                   + Før timer
                 </button>

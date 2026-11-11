@@ -158,10 +158,10 @@ export default function Spillvann({ prosjekt, melding }: Props) {
               {rader.map((r, i) => (
                 <tr key={i} className="hover:bg-slate-700/30">
                   <td className="px-2 py-1.5">
-                    <input value={r.id} onChange={(e) => oppdater(i, { id: e.target.value })} className="w-28 min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-semibold text-xs outline-none focus:border-emerald-500" />
+                    <input value={r.id} onChange={(e) => oppdater(i, { id: e.target.value })} className="w-28 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold outline-none focus:border-emerald-500" />
                   </td>
                   <td className="px-1 py-1.5">
-                    <select value={r.type} onChange={(e) => oppdater(i, { type: e.target.value as Ledningstype })} className="min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-xs outline-none focus:border-emerald-500">
+                    <select value={r.type} onChange={(e) => oppdater(i, { type: e.target.value as Ledningstype })} className="rounded border border-slate-600 bg-slate-900 px-2 py-1 outline-none">
                       <option>Ventilert</option>
                       <option>Uventilert</option>
                     </select>
@@ -172,7 +172,7 @@ export default function Spillvann({ prosjekt, melding }: Props) {
                   <td className="px-1 py-1.5"><TallFelt className="w-16" ariaLabel="qkont" verdi={r.qkont} onChange={(n) => oppdater(i, { qkont: n })} /></td>
                   <td className="bg-slate-900/50 px-2 py-1.5 text-right font-mono font-bold text-emerald-400">{fmt(beregnet[i].qdim)}</td>
                   <td className="px-1 py-1.5">
-                    <select value={r.dim} onChange={(e) => oppdater(i, { dim: Number(e.target.value) })} className="min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-bold text-xs outline-none focus:border-emerald-500">
+                    <select value={r.dim} onChange={(e) => oppdater(i, { dim: Number(e.target.value) })} className="rounded border border-slate-600 bg-slate-900 px-2 py-1 font-bold outline-none">
                       {DIMENSJONER.map((d) => <option key={d} value={d}>DN {d}</option>)}
                     </select>
                   </td>

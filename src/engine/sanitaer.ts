@@ -26,10 +26,15 @@ export const ROR_TABELL: readonly RorDim[] = [
   { dim: 54, t: 2.0, di: 50.0 },
 ];
 
+function tryggTall(v: number): number {
+  return Number.isFinite(v) ? v : 0;
+}
+
 export function innvendigDiameter(dim: number): number {
   const funnet = ROR_TABELL.find((r) => r.dim === dim);
-  if (!funnet) throw new Error(`Ukjent rørdimensjon: ${dim} mm`);
-  return funnet.di;
+  if (funnet) return funnet.di;
+  const naermeste = ROR_TABELL.find((r) => r.dim >= dim);
+  return naermeste ? naermeste.di : ROR_TABELL[ROR_TABELL.length - 1].di;
 }
 
 /** Maks anbefalt vannhastighet [m/s]. */
@@ -60,19 +65,28 @@ export interface TrykkbudsjettResultat {
 }
 
 export function beregnTrykkbudsjett(b: Trykkbudsjett): TrykkbudsjettResultat {
-  const loftetrykk = b.loftehoyde * 9.81;
-  const dispFriksjonOgEnkelt = b.hovedtrykk - b.resttrykk - loftetrykk - b.enkeltmotstand;
-  const rordeler = dispFriksjonOgEnkelt * (b.rordelerProsent / 100);
+  const hovedtrykk = tryggTall(b.hovedtrykk);
+  const resttrykk = tryggTall(b.resttrykk);
+  const loftehoyde = tryggTall(b.loftehoyde);
+  const enkeltmotstand = tryggTall(b.enkeltmotstand);
+  const rordelerProsent = tryggTall(b.rordelerProsent);
+  const rorlengde = tryggTall(b.rorlengde);
+
+  const loftetrykk = loftehoyde * 9.81;
+  const dispFriksjonOgEnkelt = hovedtrykk - resttrykk - loftetrykk - enkeltmotstand;
+  const rordeler = dispFriksjonOgEnkelt * (rordelerProsent / 100);
   const dispFriksjon = dispFriksjonOgEnkelt - rordeler;
-  const midlereR = b.rorlengde > 0 ? dispFriksjon / b.rorlengde : null;
+  const midlereR = rorlengde > 0 ? dispFriksjon / rorlengde : null;
   return { loftetrykk, dispFriksjonOgEnkelt, rordeler, dispFriksjon, midlereR };
 }
 
 /** Maks sannsynlig vannmengde qS [l/s] (Excel: qN1 + 0,015·(ΣqN−qN1) + 0,17·√(ΣqN−qN1)). */
 export function beregnQs(sumQn: number, qn1: number): number {
-  if (sumQn <= 0) return 0;
-  const diff = Math.max(0, sumQn - qn1);
-  return qn1 + 0.015 * diff + 0.17 * Math.sqrt(diff);
+  const safeSumQn = tryggTall(sumQn);
+  const safeQn1 = Math.max(0, tryggTall(qn1));
+  if (safeSumQn <= 0) return 0;
+  const diff = Math.max(0, safeSumQn - safeQn1);
+  return safeQn1 + 0.015 * diff + 0.17 * Math.sqrt(diff);
 }
 
 export interface Strekk {
@@ -99,12 +113,17 @@ export interface StrekkResultat extends Strekk {
 }
 
 export function beregnStrekk(s: Strekk): StrekkResultat {
-  const qS = beregnQs(Math.max(0, s.sumQn), Math.max(0, s.qn1));
-  const qdim = qS + Math.max(0, s.qkont);
+  const sumQn = Math.max(0, tryggTall(s.sumQn));
+  const qn1 = Math.max(0, tryggTall(s.qn1));
+  const qkont = Math.max(0, tryggTall(s.qkont));
+  const l = Math.max(0, tryggTall(s.l));
+
+  const qS = beregnQs(sumQn, qn1);
+  const qdim = qS + qkont;
   const di = innvendigDiameter(s.dim);
   const hastighet = qdim > 0 ? (4000 * qdim) / (Math.PI * di * di) : 0;
   const R = qdim > 0 ? 3.62315 * Math.pow(qdim * 3600, 1.70651) * Math.pow(di, -4.64237) : 0;
-  return { ...s, qS, qdim, di, hastighet, R, rxl: R * Math.max(0, s.l) };
+  return { ...s, sumQn, qn1, qkont, l, qS, qdim, di, hastighet, R, rxl: R * l };
 }
 
 export function sumStrekk(rader: readonly StrekkResultat[]): { lengde: number; rxl: number } {
@@ -139,7 +158,8 @@ export interface KoblingsResultat extends StrekkResultat {
 /** Koblingsledning (Excel-arket "koblingsledning"): krets = R·l + armaturtrykkfall. */
 export function beregnKobling(s: KoblingsStrekk): KoblingsResultat {
   const b = beregnStrekk(s);
-  return { ...b, armaturTap: s.armaturTap, kretsTap: b.rxl + s.armaturTap };
+  const armaturTap = tryggTall(s.armaturTap);
+  return { ...b, armaturTap, kretsTap: b.rxl + armaturTap };
 }
 
 /** Indeks til ugunstigste krets (høyest trykkfall), eller -1 om listen er tom. */

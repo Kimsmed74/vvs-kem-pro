@@ -39,12 +39,12 @@ export default function Overvann({
   );
   const [visRapport, setVisRapport] = useState(false);
   const bekreftSlett = useBekreftSlett();
+  const oppdaterFlater = (neste: Flate[]) => {
+    setFlater(neste);
+    onEndring?.(neste);
+  };
   const oppdater = (i: number, d: Partial<Flate>) =>
-    setFlater((f) => {
-      const neste = f.map((x, idx) => (idx === i ? { ...x, ...d } : x));
-      onEndring?.(neste);
-      return neste;
-    });
+    oppdaterFlater(flater.map((x, idx) => (idx === i ? { ...x, ...d } : x)));
 
   const beregninger = useMemo(
     () => flater.map((f) => overvann(f.lengde, f.bredde, f.intensitet, f.psi)),
@@ -126,14 +126,10 @@ export default function Overvann({
         ekstraKnapper={
           <Knapp
             onClick={() =>
-              setFlater((f) => {
-                const neste = [
-                  ...f,
-                  { navn: `Flate ${f.length + 1}`, lengde: 20, bredde: 10, intensitet: 0.02, psi: 0.9 },
-                ];
-                onEndring?.(neste);
-                return neste;
-              })
+              oppdaterFlater([
+                ...flater,
+                { navn: `Flate ${flater.length + 1}`, lengde: 20, bredde: 10, intensitet: 0.02, psi: 0.9 },
+              ])
             }
           >
             + Legg til overvannsflate
@@ -161,12 +157,7 @@ export default function Overvann({
                       elementNavn: `${f.navn} (${fmt(r.areal, 0)} m², Q = ${fmt(r.q, 1)} l/s)`,
                       beskrivelse: `Er du sikker på at du vil slette overvannsflaten «${f.navn}»?`,
                       bekreftTekst: '🗑️ Slett flate',
-                      onBekreft: () =>
-                        setFlater((prev) => {
-                          const neste = prev.filter((_, idx) => idx !== i);
-                          onEndring?.(neste);
-                          return neste;
-                        }),
+                      onBekreft: () => oppdaterFlater(flater.filter((_, idx) => idx !== i)),
                     })
                   }
                   className="inline-flex min-h-[44px] items-center rounded-lg border border-rose-900/60 bg-rose-950/30 px-3 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900/60"

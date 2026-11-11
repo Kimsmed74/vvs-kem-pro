@@ -289,7 +289,7 @@ export default function Agent16QAPort({
                 type="button"
                 onClick={onNullstillQa}
                 title="Nullstill alle avkryssinger i både seksjon 4 og 5"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:border-amber-500 hover:text-amber-200"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-amber-500 hover:text-amber-200"
               >
                 🔄 Nullstill sjekkliste
               </button>
@@ -332,7 +332,7 @@ export default function Agent16QAPort({
               <button
                 type="button"
                 onClick={onNullstillQa}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:border-amber-500 hover:text-amber-200"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-amber-500 hover:text-amber-200"
               >
                 🔄 Nullstill sjekkliste
               </button>

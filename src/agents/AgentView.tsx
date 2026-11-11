@@ -398,8 +398,9 @@ function FaneKnapp({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`border-b-2 px-4 py-2.5 text-xs font-semibold transition ${
+      className={`min-h-[44px] border-b-2 px-4 py-2.5 text-xs font-semibold transition ${
         aktiv
           ? 'border-emerald-400 bg-emerald-950/20 text-emerald-400'
           : 'border-transparent text-slate-400 hover:border-slate-700 hover:text-slate-200'

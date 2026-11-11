@@ -454,29 +454,22 @@ export default function AgentChat({
     let kopiertTekst = epost.epostTekst;
     let tittel = `🚰 Forespørsel til ${gkRapport.vaEtatNavn}`;
     if (utkastFane === 'geodata') {
-      kopiertTekst = mk.utkast.geodata.epostTekst;
-      tittel = `🗺️ Bestilling til ${gkRapport.geodataAvdelingNavn}`;
+      kopiertTekst = mk.utkast.byggherre.epostTekst;
+      tittel = `💼 Orientering til Byggherre (Økonomi & Risiko)`;
     } else if (utkastFane === 'arkitekt_internt') {
-      kopiertTekst = mk.utkast.arkitektInternt.epostTekst;
-      tittel = `📐 Internt notat til Arkitekt & Prosjektering`;
+      kopiertTekst = mk.utkast.prosjektgruppe.epostTekst;
+      tittel = `📐 Internt notat til Prosjektgruppe (ARK / RIBr / RIAku)`;
     } else if (utkastFane === 'alle') {
-      kopiertTekst = [
-        '====================================================================',
-        mk.utkast.vaEtat.tittel.toUpperCase(),
-        '====================================================================',
-        mk.utkast.vaEtat.epostTekst,
-        '',
-        '====================================================================',
-        mk.utkast.geodata.tittel.toUpperCase(),
-        '====================================================================',
-        mk.utkast.geodata.epostTekst,
-        '',
-        '====================================================================',
-        mk.utkast.arkitektInternt.tittel.toUpperCase(),
-        '====================================================================',
-        mk.utkast.arkitektInternt.epostTekst,
-      ].join('\n');
-      tittel = '📑 Alle 3 oppdelte utkast (VA-etat, Geodata og Arkitekt)';
+      kopiertTekst = mk.alleUtkast
+        .flatMap((u, idx) => [
+          ...(idx > 0 ? [''] : []),
+          '====================================================================',
+          u.tittel.toUpperCase(),
+          '====================================================================',
+          u.epostTekst,
+        ])
+        .join('\n');
+      tittel = '📑 Alle 3 oppdelte utkast (Kommune, Prosjektgruppe og Byggherre)';
     }
 
     const ok = await kopierTilUtklippstavle(kopiertTekst);
@@ -497,9 +490,10 @@ export default function AgentChat({
         `📧 **${tittel} (kopiert til utklippstavlen):**\n\n` +
         filterInfo +
         `**3 oppdelte utkast er klare i systemet:**\n` +
-        `1. 🚰 **VA-etat:** ${mk.utkast.vaEtat.mottaker}\n` +
-        `2. 🗺️ **Geodata:** ${mk.utkast.geodata.mottaker}\n` +
-        `3. 📐 **Arkitekt:** ${mk.utkast.arkitektInternt.mottaker}\n\n` +
+        mk.alleUtkast
+          .map((u, idx) => `${idx + 1}. **${u.kortTittel}:** ${u.mottaker}`)
+          .join('\n') +
+        `\n\n` +
         `---\n${kopiertTekst}\n---\n\n` +
         `${epost.telefonSjekkliste}`,
     });
@@ -883,7 +877,7 @@ export default function AgentChat({
             }
           }}
           placeholder="Skriv f.eks. «Adressen er Kongsgata 10, 4005 Stavanger og laveste sluk er kote 12.5» eller lim inn (Ctrl+V) et VA-kart …"
-          className="h-20 w-full resize-none rounded-lg border border-slate-600 bg-slate-900 p-2 text-base sm:text-xs text-slate-100 outline-none focus:border-emerald-500"
+          className="h-20 w-full resize-none rounded-lg border border-slate-600 bg-slate-900 p-2 text-xs text-slate-100 outline-none focus:border-emerald-500"
         />
         <div className="mt-2 flex gap-2">
           <button

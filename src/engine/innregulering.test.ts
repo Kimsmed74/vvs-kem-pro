@@ -11,7 +11,7 @@ import {
   type HydroniskStrengInput,
   type VentilVentilInput,
 } from './innregulering';
-import { byggTfmKode } from './fagmoduler';
+import { beregnSprinklerOgBranntrommel, byggTfmKode } from './fagmoduler';
 
 describe('Hydronisk Innregulering & Ventildimensjonering', () => {
   const kretser: HydroniskStrengInput[] = [
@@ -320,5 +320,51 @@ describe('TFM-Merkesystem (Statsbygg PA 0802)', () => {
       typeKode: 'TF',
     });
     expect(kodeMedType).toBe('+A=360.001-JV002%TF');
+  });
+});
+
+describe('Robusthet & underdimensjonering', () => {
+  it('flagget underdimensjonert PICV-ventil i forinnstillingTekst', () => {
+    const res = beregnHydroniskInnregulering([
+      {
+        id: 'u1',
+        navn: 'Stor krets på liten PICV',
+        type: 'kjoling',
+        ventilId: 'danfoss_abqm_15lf',
+        effektKw: 20,
+        deltaTK: 6,
+        dpKretsKpa: 15,
+        dpVentilKpa: 16,
+        valgtKvs: 0,
+        maaltVannmengdeLh: 2800,
+      },
+    ]);
+    expect(res.strenger[0].forinnstillingTekst).toContain('Underdim.');
+  });
+
+  it('beskytter beregnKondensOgDuggpunkt mot lambdaIso <= 0 eller NaN', () => {
+    const res = beregnKondensOgDuggpunkt({
+      rorDiameterMm: 54,
+      isoTykkelseMm: 32,
+      lambdaIso: 0,
+      medieTempC: 6,
+      omgivelseTempC: 24,
+      relativFuktighet: 60,
+    });
+    expect(Number.isFinite(res.overflateTempC)).toBe(true);
+    expect(Number.isFinite(res.varmetapWattPerM)).toBe(true);
+  });
+
+  it('klemmer negativ slangelengde i branntrommelkontroll til >= 0', () => {
+    const res = beregnSprinklerOgBranntrommel({
+      fareklasse: 'OH1',
+      kFaktor: 80,
+      dekningPerDyseM2: 12,
+      ganglinjeTilFjernesteHjorneM: 10,
+      slangeLengdeM: -10,
+      tilgjengeligDynamiskTrykkBar: 4.0,
+    });
+    expect(res.maksTillattGanglinjeM).toBe(5);
+    expect(res.ganglinjeOk).toBe(false);
   });
 });

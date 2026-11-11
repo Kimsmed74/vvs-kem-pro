@@ -42,12 +42,12 @@ export default function Bereder({
     setDeltaTState(n);
     onEndring?.({ linjer, ladetid: n, c, deltaT: n });
   };
+  const oppdaterLinjer = (neste: Utstyrslinje[]) => {
+    setLinjer(neste);
+    onEndring?.({ linjer: neste, ladetid, c, deltaT });
+  };
   const oppdater = (i: number, d: Partial<Utstyrslinje>) =>
-    setLinjer((l) => {
-      const neste = l.map((x, idx) => (idx === i ? { ...x, ...d } : x));
-      onEndring?.({ linjer: neste, ladetid, c, deltaT });
-      return neste;
-    });
+    oppdaterLinjer(linjer.map((x, idx) => (idx === i ? { ...x, ...d } : x)));
 
   const prosjektObj: ProsjektData = useMemo(
     () => prosjekt ?? PROSJEKT_PRESETS[0],
@@ -116,7 +116,7 @@ export default function Bereder({
           melding('📥 Markdown lastet ned for NotebookLM / KI!');
         }}
         ekstraKnapper={
-          <Knapp onClick={() => setLinjer((l) => [...l, { navn: 'Nytt utstyr', antall: 1, kwhPerEnhet: 1 }])}>
+          <Knapp onClick={() => oppdaterLinjer([...linjer, { navn: 'Nytt utstyr', antall: 1, kwhPerEnhet: 1 }])}>
             + Legg til utstyr
           </Knapp>
         }
@@ -124,25 +124,35 @@ export default function Bereder({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Kort tittel="Varmtvannsbehov (døgn)" ikon="🏨">
-          <div className="overflow-x-auto rounded-lg border border-slate-700">
+          <div className="overflow-x-auto rounded-lg border border-slate-700/80">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-slate-900 text-[11px] uppercase tracking-wider text-slate-300">
-                  <th className="px-2.5 py-2 text-left">Utstyr</th>
+                <tr className="bg-slate-900/70 text-left text-slate-400">
+                  <th className="px-2 py-2">Utstyr</th>
                   <th className="px-2 py-2 text-right">Antall</th>
                   <th className="px-2 py-2 text-right">kWh/enhet</th>
                   <th className="px-2 py-2 text-right">kWh/døgn</th>
-                  <th className="px-2 py-2 text-center" />
+                  <th className="px-1 py-2" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700">
+              <tbody className="divide-y divide-slate-800">
                 {linjer.map((l, i) => (
-                  <tr key={i} className="hover:bg-slate-700/30">
-                    <td className="px-2 py-1.5"><input value={l.navn} onChange={(e) => oppdater(i, { navn: e.target.value })} className="w-full min-w-[120px] rounded border border-slate-600 bg-slate-900 px-2 py-1 outline-none focus:border-emerald-500" /></td>
-                    <td className="px-1 py-1.5"><TallFelt className="w-20" ariaLabel="Antall" verdi={l.antall} onChange={(n) => oppdater(i, { antall: n })} /></td>
-                    <td className="px-1 py-1.5"><TallFelt className="w-20" ariaLabel="kWh per enhet" verdi={l.kwhPerEnhet} onChange={(n) => oppdater(i, { kwhPerEnhet: n })} /></td>
-                    <td className="px-2 py-1.5 text-right font-mono font-bold text-slate-200">{fmt(l.antall * l.kwhPerEnhet, 3)}</td>
-                    <td className="px-2 py-1.5 text-center">
+                  <tr key={i}>
+                    <td className="px-2 py-1.5">
+                      <input
+                        value={l.navn}
+                        onChange={(e) => oppdater(i, { navn: e.target.value })}
+                        className="min-w-[140px] w-full rounded border border-slate-600 bg-slate-900 px-2 py-1.5 outline-none focus:border-emerald-500"
+                      />
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <TallFelt className="w-20" ariaLabel="Antall" verdi={l.antall} onChange={(n) => oppdater(i, { antall: n })} />
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <TallFelt className="w-20" ariaLabel="kWh per enhet" verdi={l.kwhPerEnhet} onChange={(n) => oppdater(i, { kwhPerEnhet: n })} />
+                    </td>
+                    <td className="px-2 py-1.5 text-right font-mono">{fmt(l.antall * l.kwhPerEnhet, 3)}</td>
+                    <td className="px-1 py-1.5 text-center">
                       <button
                         type="button"
                         aria-label={`Slett ${l.navn}`}
@@ -153,12 +163,7 @@ export default function Bereder({
                             elementNavn: `${l.navn} (${l.antall} stk × ${l.kwhPerEnhet} kWh)`,
                             beskrivelse: `Er du sikker på at du vil slette «${l.navn}» fra varmtvannsbehovet?`,
                             bekreftTekst: '🗑️ Slett utstyr',
-                            onBekreft: () =>
-                              setLinjer((x) => {
-                                const neste = x.filter((_, idx) => idx !== i);
-                                onEndring?.({ linjer: neste, ladetid, c, deltaT });
-                                return neste;
-                              }),
+                            onBekreft: () => oppdaterLinjer(linjer.filter((_, idx) => idx !== i)),
                           })
                         }
                         className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
@@ -171,7 +176,11 @@ export default function Bereder({
               </tbody>
             </table>
           </div>
-          <div className="mt-3"><Knapp onClick={() => setLinjer((l) => [...l, { navn: 'Nytt utstyr', antall: 1, kwhPerEnhet: 1 }])}>+ Legg til utstyr</Knapp></div>
+          <div className="mt-3">
+            <Knapp onClick={() => oppdaterLinjer([...linjer, { navn: 'Nytt utstyr', antall: 1, kwhPerEnhet: 1 }])}>
+              + Legg til utstyr
+            </Knapp>
+          </div>
         </Kort>
 
         <Kort tittel="Lading & beredervolum" ikon="🔥">

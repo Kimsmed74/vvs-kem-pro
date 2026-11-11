@@ -54,7 +54,7 @@ export default function LiveFremdriftsBar({
         type="button"
         onClick={onApneDashbord}
         title="Klikk for å åpne Prosjektoversikt, Fremdrift & Tidssporing"
-        className="group flex items-center gap-2 text-left transition hover:opacity-95"
+        className="group flex min-h-[36px] items-center gap-2 text-left transition hover:opacity-95"
       >
         <span className="text-xs font-bold text-slate-300 group-hover:text-emerald-300">
           📊 Fremdrift:
@@ -73,13 +73,13 @@ export default function LiveFremdriftsBar({
       </button>
 
       {/* Status-badge og mangel-varsel */}
-      <div className="flex items-center gap-1.5 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
         {antallRodeAlarmer > 0 ? (
           <button
             type="button"
             onClick={onApneMangler}
             title={`${antallRodeAlarmer} kritiske avvik (klikk for mangelliste)`}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-rose-700/80 bg-rose-950/80 px-2 py-0.5 font-bold text-rose-200 transition hover:bg-rose-900"
+            className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-rose-700/80 bg-rose-950/80 px-2.5 py-1 font-bold text-rose-200 transition hover:bg-rose-900"
           >
             <span>🚨</span>
             <span>{antallRodeAlarmer} avvik</span>
@@ -89,7 +89,7 @@ export default function LiveFremdriftsBar({
             type="button"
             onClick={onApneMangler}
             title={`${antallManglerTotalt} åpne mangler / HINTs (klikk for liste)`}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-amber-700/80 bg-amber-950/70 px-2 py-0.5 font-semibold text-amber-200 transition hover:bg-amber-900"
+            className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-amber-700/80 bg-amber-950/70 px-2.5 py-1 font-semibold text-amber-200 transition hover:bg-amber-900"
           >
             <span>⚠️</span>
             <span>{antallManglerTotalt} mangler</span>
@@ -97,14 +97,14 @@ export default function LiveFremdriftsBar({
         ) : null}
 
         {erLaast ? (
-          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-600 bg-emerald-950/80 px-2 py-0.5 font-bold text-emerald-300">
+          <span className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-emerald-600 bg-emerald-950/80 px-2.5 py-1 font-bold text-emerald-300">
             🔒 Låst & Godkjent
           </span>
         ) : erKlarForSignatur ? (
           <button
             type="button"
             onClick={onApneQa}
-            className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-emerald-600 bg-emerald-950/80 px-2 py-0.5 font-bold text-emerald-300 transition hover:bg-emerald-900"
+            className="inline-flex min-h-[36px] items-center gap-1 rounded-md border border-emerald-600 bg-emerald-950/80 px-2.5 py-1 font-bold text-emerald-300 transition hover:bg-emerald-900"
           >
             ✅ Klar for signatur
           </button>

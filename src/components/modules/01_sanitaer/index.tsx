@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Trykkfall from './Trykkfall';
 import Koblingsledning from './Koblingsledning';
 import Spillvann from './Spillvann';
@@ -57,6 +57,11 @@ export default function Sanitaer({
   onVelgAgent,
 }: Props) {
   const [fane, setFane] = useState<FaneId>(startFane);
+
+  useEffect(() => {
+    setFane(startFane);
+  }, [startFane]);
+
   const aktivFaneInfo = FANER.find((f) => f.id === fane);
 
   return (
@@ -78,15 +83,15 @@ export default function Sanitaer({
       )}
 
       {/* Fanevelger med integrert agent-kobling */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700 pb-2">
-        <div role="tablist" className="flex max-w-full overflow-x-auto gap-1.5 pb-1 touch-pan-x">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-700 pb-2">
+        <div role="tablist" className="flex flex-wrap gap-1.5">
           {FANER.map((f) => (
             <button
               key={f.id}
               role="tab"
               aria-selected={fane === f.id}
               onClick={() => setFane(f.id)}
-              className={`min-h-[44px] shrink-0 whitespace-nowrap border-b-2 px-3.5 py-2.5 text-xs sm:text-sm font-bold transition ${
+              className={`min-h-[44px] border-b-2 px-3.5 py-2.5 text-xs sm:text-sm font-bold transition ${
                 fane === f.id ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >

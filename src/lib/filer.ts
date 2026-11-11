@@ -327,8 +327,8 @@ async function trekkUtLesbarTekstFraPdfBuffer(buffer: ArrayBuffer): Promise<stri
         try {
           const ds = new DecompressionStream(format);
           const writer = ds.writable.getWriter();
-          void writer.write(kompBytes);
-          void writer.close();
+          await writer.write(kompBytes);
+          await writer.close();
           const utBuf = await new Response(ds.readable).arrayBuffer();
           const tekstStrom = new TextDecoder('latin1').decode(new Uint8Array(utBuf));
           if (tekstStrom.includes('BT') || tekstStrom.includes('Tj') || tekstStrom.includes('TJ')) {

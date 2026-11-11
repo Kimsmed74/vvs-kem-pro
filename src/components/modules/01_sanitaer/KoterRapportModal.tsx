@@ -232,7 +232,8 @@ export default function KoterRapportModal({
             <button
               type="button"
               onClick={onLukk}
-              className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white"
+              aria-label="Lukk forhåndsvisning"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white"
             >
               ✕
             </button>
@@ -240,10 +241,10 @@ export default function KoterRapportModal({
         </div>
 
         {/* A4-dokument */}
-        <div className="overflow-x-auto p-4 sm:p-8 print:p-0 print:m-0 print:overflow-visible print:w-full">
+        <div className="overflow-x-auto p-3 sm:p-8 print:p-0 print:m-0 print:overflow-visible print:w-full">
           <article
             id="koter-a4-rapport-utskrift"
-            className="vvs-rapport-ark mx-auto max-w-[210mm] rounded-xl bg-white p-6 sm:p-8 text-slate-900 shadow-xl print:p-0 print:m-0 print:shadow-none print:border-none print:max-w-none print:w-full"
+            className="vvs-rapport-ark mx-auto max-w-[210mm] rounded-xl bg-white p-4 sm:p-8 text-slate-900 shadow-xl print:p-0 print:m-0 print:shadow-none print:border-none print:max-w-none print:w-full"
           >
             <div className="mb-6 h-2.5 w-full rounded-full bg-gradient-to-r from-emerald-600 via-sky-600 to-indigo-600 print:h-2" />
 

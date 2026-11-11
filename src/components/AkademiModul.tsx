@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AGENTER } from '../agents/agentData';
 import type { ProsjektData } from '../data/prosjekter';
 import { kopierTilUtklippstavle } from '../lib/format';
@@ -30,6 +30,10 @@ export default function AkademiModul({
   const [aktivtFagkurs, setAktivtFagkurs] = useState<string>('sanitaer');
   const [agentFilterFase, setAgentFilterFase] = useState<'alle' | 'A' | 'B' | 'C' | 'D'>('alle');
   const [valgtPromptKategori, setValgtPromptKategori] = useState<string>('audio_overview');
+
+  useEffect(() => {
+    setAktivFane(startFane);
+  }, [startFane]);
 
   const kopierPrompt = async (tittel: string, tekst: string) => {
     const ok = await kopierTilUtklippstavle(tekst);
@@ -79,11 +83,11 @@ export default function AkademiModul({
         </div>
 
         {/* 4 Hovedfaner */}
-        <div className="mt-6 flex overflow-x-auto touch-pan-x flex-nowrap sm:flex-wrap gap-2 border-t border-slate-800/80 pt-4 pb-1">
+        <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-800/80 pt-4">
           <button
             type="button"
             onClick={() => setAktivFane('fagkurs')}
-            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'fagkurs'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -96,7 +100,7 @@ export default function AkademiModul({
           <button
             type="button"
             onClick={() => setAktivFane('agenter')}
-            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'agenter'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -109,7 +113,7 @@ export default function AkademiModul({
           <button
             type="button"
             onClick={() => setAktivFane('brukerveiledning')}
-            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'brukerveiledning'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -122,7 +126,7 @@ export default function AkademiModul({
           <button
             type="button"
             onClick={() => setAktivFane('notebooklm')}
-            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'notebooklm'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -178,8 +182,8 @@ export default function AkademiModul({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onNavigerTilModul('sanitaer', 'forbruksvann')}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
+                  onClick={() => onNavigerTilModul('sanitaer', 'trykkfall')}
+                  className="inline-flex min-h-[40px] items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500"
                 >
                   Gå til Trykkfallskalkulator →
                 </button>
@@ -734,7 +738,7 @@ export default function AkademiModul({
             {[
               {
                 steg: 1,
-                tittel: 'Trinn 1: Opprett Prosjekt &amp; Hent Grunnlagsdata',
+                tittel: 'Trinn 1: Opprett Prosjekt & Hent Grunnlagsdata',
                 ikon: '📂',
                 tekst:
                   'Klikk «+ Nytt prosjekt» øverst til venstre. Tast inn prosjektnavn og bruk Kartverket-oppslaget for automatisk å hente offisiell gateadresse, Gnr/Bnr og terrengkote. Dra og slipp PDF-rapporter, Excel-kalkyler eller bilder rett inn i feltet.',
@@ -743,7 +747,7 @@ export default function AkademiModul({
               },
               {
                 steg: 2,
-                tittel: 'Trinn 2: Koteregnskap &amp; Lov 2 Tilbakeslagssjekk (950 mm)',
+                tittel: 'Trinn 2: Koteregnskap & Lov 2 Tilbakeslagssjekk (950 mm)',
                 ikon: '📐',
                 tekst:
                   'Gå til Modul 1 (Koter & Utvendig VA). Tast inn kote ITR og IBR i kommunal kum, samt kote laveste sluk / ferdig gulv (OK FG). Hvis marginen er under 950 mm (eller 0,90 m TEK17), krever appen automatisk avløpspumpestasjon (NS-EN 12050).',
@@ -752,16 +756,16 @@ export default function AkademiModul({
               },
               {
                 steg: 3,
-                tittel: 'Trinn 3: Sanitær Trykkfall &amp; Beredervolum',
+                tittel: 'Trinn 3: Sanitær Trykkfall & Beredervolum',
                 ikon: '💧',
                 tekst:
                   'Regn trykkbudsjett iht. Byggforsk 553.102 for å finne disponibelt trykk til friksjon (p_disp,frik). Dimensjoner fordelingsledninger og sjekk at vannhastigheten aldri overstiger 2,0 m/s. Dimensjoner varmtvannsbereder (VVB) for spissbelastning.',
                 knappTekst: 'Åpne Trykkfallskalkulator',
-                handling: () => onNavigerTilModul('sanitaer', 'forbruksvann'),
+                handling: () => onNavigerTilModul('sanitaer', 'trykkfall'),
               },
               {
                 steg: 4,
-                tittel: 'Trinn 4: Varme, Hydronikk, Innregulering &amp; Ventilasjon',
+                tittel: 'Trinn 4: Varme, Hydronikk, Innregulering & Ventilasjon',
                 ikon: '🔥',
                 tekst:
                   'Gå til Modul 2 og Modul 3. Kontroller at teknisk rom tilfredsstiller TEK17 § 14-4(2) (10 m² + 1 % BRA). Dimensjoner ekspansjonskar (Pneumatex Statico/Compresso) og fyll ut innreguleringsprotokoll (STAD / PICV) med sjekk av ventilautoritet β ≥ 0,30.',
@@ -779,7 +783,7 @@ export default function AkademiModul({
               },
               {
                 steg: 6,
-                tittel: 'Trinn 6: Visuell A4-Rapport, PDF &amp; NotebookLM-Eksport',
+                tittel: 'Trinn 6: Visuell A4-Rapport, PDF & NotebookLM-Eksport',
                 ikon: '📄',
                 tekst:
                   'I den globale rapportlinjen (<GlobalRapportBar>) klikker du «📄 Visuell rapport & PDF». Dette åpner en utskriftsoptimalisert A4-rapport med offisielt brevhode for Kim Jørgensen | Rørleggermester & RIV, nøkkeltall og godkjenningsstempel. Du kan også laste ned ren .md for AI-bruk.',

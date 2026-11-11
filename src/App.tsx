@@ -1,22 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MODULER } from './modules';
 import { AGENTER } from './agents/agentData';
 import { PROSJEKT_PRESETS, tomtProsjekt, type ProsjektData } from './data/prosjekter';
-import Sanitaer, { type FaneId } from './components/modules/01_sanitaer';
-import FagModulVisning from './components/modules/FagModulVisning';
-import AgentHub from './agents/AgentHub';
-import AgentView from './agents/AgentView';
-import SuperKommandoer from './agents/SuperKommandoer';
-import Agent16QAPort from './agents/Agent16QAPort';
-import ProsjektVeiviser from './components/ProsjektVeiviser';
-import ProsjektGalleri from './components/ProsjektGalleri';
-import ProsjektDialog from './components/ProsjektDialog';
-import InnstillingerDialog from './components/InnstillingerDialog';
-import HjelpDialog from './components/HjelpDialog';
-import MoteOpptaker from './components/MoteOpptaker';
-import AgentChat from './components/AgentChat';
-import ProsjektDashbord, { type DashbordFane } from './components/ProsjektDashbord';
-import AkademiModul, { type AkademiFane } from './components/AkademiModul';
+import type { FaneId } from './components/modules/01_sanitaer';
+import type { DashbordFane } from './components/ProsjektDashbord';
+import type { AkademiFane } from './components/AkademiModul';
 import LiveFremdriftsBar from './components/common/LiveFremdriftsBar';
 import { beregnProsjektFremdrift } from './lib/fremdrift';
 import { BekreftSlettProvider, useBekreftSlett } from './components/common/BekreftSlettModal';
@@ -59,6 +47,22 @@ import {
   type KalkulatorTilstand,
   type OverstyringInfo,
 } from './lib/lagring';
+
+const Sanitaer = lazy(() => import('./components/modules/01_sanitaer'));
+const FagModulVisning = lazy(() => import('./components/modules/FagModulVisning'));
+const AgentHub = lazy(() => import('./agents/AgentHub'));
+const AgentView = lazy(() => import('./agents/AgentView'));
+const SuperKommandoer = lazy(() => import('./agents/SuperKommandoer'));
+const Agent16QAPort = lazy(() => import('./agents/Agent16QAPort'));
+const ProsjektVeiviser = lazy(() => import('./components/ProsjektVeiviser'));
+const ProsjektGalleri = lazy(() => import('./components/ProsjektGalleri'));
+const ProsjektDialog = lazy(() => import('./components/ProsjektDialog'));
+const InnstillingerDialog = lazy(() => import('./components/InnstillingerDialog'));
+const HjelpDialog = lazy(() => import('./components/HjelpDialog'));
+const MoteOpptaker = lazy(() => import('./components/MoteOpptaker'));
+const AgentChat = lazy(() => import('./components/AgentChat'));
+const ProsjektDashbord = lazy(() => import('./components/ProsjektDashbord'));
+const AkademiModul = lazy(() => import('./components/AkademiModul'));
 
 type HovedVisning =
   | { type: 'veiviser' }
@@ -123,38 +127,68 @@ function AppInnhold() {
   const [forhandsvalgtSporsmal, setForhandsvalgtSporsmal] = useState<string | null>(null);
 
   const importJsonInputRef = useRef<HTMLInputElement>(null);
+  const harHydrertIdbRef = useRef<boolean>(false);
+  const toastTimerRef = useRef<number | null>(null);
+  const tilstandRef = useRef<AppTilstand>(tilstand);
+  tilstandRef.current = tilstand;
 
   const melding = useCallback((tekst: string) => {
     setToast(tekst);
-    window.setTimeout(() => setToast(null), 3500);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3500);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current !== null) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
   }, []);
 
   // Last inn full tilstand fra IndexedDB ved oppstart (hvis nyere/rikere enn localStorage)
   useEffect(() => {
     let aktiv = true;
-    void hentTilstandIDB().then((idbTilstand) => {
-      if (!aktiv || !idbTilstand) return;
-      setTilstand((nå) => {
-        if (
-          idbTilstand.brukerProsjekter.length > nå.brukerProsjekter.length ||
-          Object.keys(idbTilstand.tilstand).length > Object.keys(nå.tilstand).length
-        ) {
-          return idbTilstand;
+    void hentTilstandIDB()
+      .then((idbTilstand) => {
+        if (!aktiv) return;
+        harHydrertIdbRef.current = true;
+        if (!idbTilstand) {
+          void lagreTilstandIDB(tilstandRef.current);
+          return;
         }
-        return nå;
+        setTilstand((nå) => {
+          if (
+            idbTilstand.brukerProsjekter.length > nå.brukerProsjekter.length ||
+            Object.keys(idbTilstand.tilstand).length > Object.keys(nå.tilstand).length
+          ) {
+            return idbTilstand;
+          }
+          void lagreTilstandIDB(nå);
+          return nå;
+        });
+      })
+      .catch(() => {
+        harHydrertIdbRef.current = true;
       });
-    });
     return () => {
       aktiv = false;
     };
   }, []);
 
-  // Lagre tilstand til både localStorage og IndexedDB ved endring
+  // Lagre tilstand til både localStorage og IndexedDB ved endring (etter IDB-hydrering)
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       lagreTilstand(window.localStorage, tilstand);
     }
-    void lagreTilstandIDB(tilstand);
+    if (harHydrertIdbRef.current) {
+      void lagreTilstandIDB(tilstand);
+    }
   }, [tilstand]);
 
   const synligePresets = useMemo(() => {
@@ -773,7 +807,7 @@ function AppInnhold() {
       )}
 
       {/* Hovedinnhold */}
-      <div className="flex min-w-0 flex-1 flex-col w-full max-w-full overflow-x-hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
         {/* Topplinje med menyknapp (mobil/nettbrett), prosjektvelger, + Nytt prosjekt, Slett prosjekt, Filer, Eksport/Import (.json), globale lover og Hjelp */}
         <header className="border-b border-slate-800 bg-slate-900 px-3 py-3 shadow-sm sm:px-6">
           <div className="flex flex-col gap-2.5">
@@ -1004,10 +1038,18 @@ function AppInnhold() {
         </header>
 
         {/* Hovedvisning */}
-        <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 w-full max-w-full overflow-x-hidden">
+        <main className="flex-1 overflow-y-auto p-3 pb-20 sm:p-6 lg:pb-6">
+          <Suspense
+            fallback={
+              <div className="flex min-h-[240px] items-center justify-center rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-xs font-semibold text-slate-300">
+                ⏳ Laster fagmodul…
+              </div>
+            }
+          >
           {visMoteOpptaker && (
             <div className="mb-5">
               <MoteOpptaker
+                key={prosjekt.id}
                 prosjekt={prosjekt}
                 innstillinger={innstillinger}
                 onOppdaterProsjekt={oppdaterAktivtProsjekt}
@@ -1024,6 +1066,7 @@ function AppInnhold() {
 
           {visning.type === 'veiviser' && (
             <ProsjektVeiviser
+              key={prosjekt.id}
               prosjekt={prosjekt}
               analyse={analyse}
               filer={prosjektFiler}
@@ -1171,6 +1214,7 @@ function AppInnhold() {
 
           {visning.type === 'agent_view' && aktivAgent && (
             <AgentView
+              key={`${prosjekt.id}:${aktivAgent.id}`}
               agent={aktivAgent}
               prosjekt={prosjekt}
               analyse={analyse}
@@ -1230,6 +1274,7 @@ function AppInnhold() {
 
           {visning.type === 'qa_port' && (
             <Agent16QAPort
+              key={prosjekt.id}
               prosjekt={prosjekt}
               analyse={analyse}
               qa={prosjektTilstand.qa}
@@ -1282,6 +1327,7 @@ function AppInnhold() {
 
           {visning.type === 'modul' && aktivModul && aktivModul.id !== 'sanitaer' && (
             <FagModulVisning
+              key={`${prosjekt.id}:${aktivModul.id}`}
               modul={aktivModul}
               prosjekt={prosjekt}
               analyse={analyse}
@@ -1305,6 +1351,7 @@ function AppInnhold() {
               melding={melding}
             />
           )}
+          </Suspense>
         </main>
 
         {/* Mobilbunn-navigasjon */}
@@ -1357,12 +1404,12 @@ function AppInnhold() {
         </nav>
       </div>
 
-      {/* Fast AI-chat-knapp nede i høyre hjørne (tilpasset med clearance for mobilbunn-menyen) */}
+      {/* Fast AI-chat-knapp nede i høyre hjørne */}
       {!chatAgentId && (
         <button
           type="button"
           onClick={() => apneChatForAgent(aktivAgent?.id ?? sistBrukteAgentId)}
-          className="fixed bottom-16 right-4 sm:bottom-5 sm:right-5 z-30 flex items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-2xl transition hover:bg-emerald-500"
+          className="fixed bottom-20 right-4 z-30 flex min-h-[44px] items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-2xl transition hover:bg-emerald-500 lg:bottom-5 lg:right-5"
         >
           <span className="text-base">💬</span>
           <span>
@@ -1377,8 +1424,10 @@ function AppInnhold() {
 
       {/* AI-chat skuff */}
       {chatAgentId && (
-        <AgentChat
-          agentId={chatAgentId}
+        <Suspense fallback={null}>
+          <AgentChat
+            key={prosjekt.id}
+            agentId={chatAgentId}
           onByttAgent={(id) => {
             setSistBrukteAgentId(id);
             setChatAgentId(id);
@@ -1405,10 +1454,12 @@ function AppInnhold() {
           onLukk={() => setChatAgentId(null)}
           melding={melding}
         />
+        </Suspense>
       )}
 
       {/* Prosjekt-dialog (opprett / rediger) */}
       {prosjektModal && (
+        <Suspense fallback={null}>
         <ProsjektDialog
           tittel={
             prosjektModal.modus === 'nytt'
@@ -1422,10 +1473,12 @@ function AppInnhold() {
           onFilerLastetOpp={handterNyeFiler}
           onSlettProsjekt={prosjektModal.modus === 'rediger' ? slettAktivtProsjekt : undefined}
         />
+        </Suspense>
       )}
 
       {/* Innstillinger-dialog */}
       {visInnstillinger && (
+        <Suspense fallback={null}>
         <InnstillingerDialog
           innstillinger={innstillinger}
           krav={tilstand.krav}
@@ -1434,10 +1487,12 @@ function AppInnhold() {
           onLagre={lagreNyeInnstillinger}
           onLukk={() => setVisInnstillinger(false)}
         />
+        </Suspense>
       )}
 
       {/* Hjelp & Veiledning-dialog */}
       {visHjelp && (
+        <Suspense fallback={null}>
         <HjelpDialog
           onLukk={() => setVisHjelp(false)}
           onStartVeiviser={() => {
@@ -1449,13 +1504,14 @@ function AppInnhold() {
             setVisInnstillinger(true);
           }}
         />
+        </Suspense>
       )}
 
       {/* Toast-notifikasjon */}
       {toast && (
         <div
           role="status"
-          className="fixed bottom-20 right-5 z-50 rounded-lg border-l-4 border-emerald-500 bg-slate-900 px-4 py-3 text-sm font-semibold text-slate-100 shadow-2xl"
+          className="fixed bottom-36 right-4 left-4 z-50 rounded-lg border-l-4 border-emerald-500 bg-slate-900 px-4 py-3 text-sm font-semibold text-slate-100 shadow-2xl sm:left-auto sm:right-5 lg:bottom-20"
         >
           {toast}
         </div>
@@ -1482,7 +1538,7 @@ function NavKnapp({
       type="button"
       onClick={onClick}
       aria-current={aktiv ? 'page' : undefined}
-      className={`min-h-[44px] shrink-0 lg:w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
+      className={`min-h-[44px] w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
         aktiv
           ? 'border-l-2 border-emerald-400 bg-emerald-950 text-emerald-300'
           : fremhevet === 'rose'

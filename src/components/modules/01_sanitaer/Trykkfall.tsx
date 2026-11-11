@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ProsjektData } from '../../../data/prosjekter';
 import {
   EKSEMPEL_BUDSJETT,
@@ -69,31 +69,46 @@ export default function Trykkfall({
   );
   const [visRapportModal, setVisRapportModal] = useState<boolean>(false);
   const bekreftSlett = useBekreftSlett();
+  const forrigeGlobalRef = useRef<{ trykk: number | null; hoyde: number | null }>({
+    trykk: globaltTrykkKpa,
+    hoyde: globalLoftehoydeM,
+  });
 
-  // Synkroniser automatisk når globalt vanntrykk eller løftehøyde fra Steg 1 endres
+  // Synkroniser automatisk når globalt vanntrykk eller løftehøyde fra Steg 1 endres etter montering
   useEffect(() => {
-    if (globaltTrykkKpa === null && globalLoftehoydeM === null) return;
+    const prev = forrigeGlobalRef.current;
+    const trykkEndret = globaltTrykkKpa !== null && globaltTrykkKpa !== prev.trykk;
+    const hoydeEndret = globalLoftehoydeM !== null && globalLoftehoydeM !== prev.hoyde;
+    forrigeGlobalRef.current = { trykk: globaltTrykkKpa, hoyde: globalLoftehoydeM };
+
+    if (!trykkEndret && !hoydeEndret) return;
     setBudsjettState((forrige) => ({
       ...forrige,
-      ...(globaltTrykkKpa !== null ? { hovedtrykk: globaltTrykkKpa } : {}),
-      ...(globalLoftehoydeM !== null ? { loftehoyde: globalLoftehoydeM } : {}),
+      ...(trykkEndret && globaltTrykkKpa !== null ? { hovedtrykk: globaltTrykkKpa } : {}),
+      ...(hoydeEndret && globalLoftehoydeM !== null ? { loftehoyde: globalLoftehoydeM } : {}),
     }));
   }, [globaltTrykkKpa, globalLoftehoydeM]);
 
-  const setBudsjett: typeof setBudsjettState = (oppdater) => {
-    setBudsjettState((forrige) => {
-      const neste = typeof oppdater === 'function' ? oppdater(forrige) : oppdater;
-      onEndring?.({ budsjett: neste, rader, tittel: prosjekt });
-      return neste;
-    });
+  const setBudsjett = (
+    oppdater: Trykkbudsjett | ((forrige: Trykkbudsjett) => Trykkbudsjett)
+  ) => {
+    const neste = typeof oppdater === 'function' ? oppdater(budsjett) : oppdater;
+    setBudsjettState(neste);
+    onEndring?.({ budsjett: neste, rader, tittel: prosjekt });
   };
 
-  const setRader: typeof setRaderState = (oppdater) => {
-    setRaderState((forrige) => {
-      const neste = typeof oppdater === 'function' ? oppdater(forrige) : oppdater;
-      onEndring?.({ budsjett, rader: neste, tittel: prosjekt });
-      return neste;
-    });
+  const setRader = (oppdater: Strekk[] | ((forrige: Strekk[]) => Strekk[])) => {
+    const neste = typeof oppdater === 'function' ? oppdater(rader) : oppdater;
+    setRaderState(neste);
+    onEndring?.({ budsjett, rader: neste, tittel: prosjekt });
+  };
+
+  const tilbakestillAlt = () => {
+    const nesteBudsjett = { ...EKSEMPEL_BUDSJETT };
+    const nesteRader = EKSEMPEL_FORDELING.map((r) => ({ ...r }));
+    setBudsjettState(nesteBudsjett);
+    setRaderState(nesteRader);
+    onEndring?.({ budsjett: nesteBudsjett, rader: nesteRader, tittel: prosjekt });
   };
 
   const setProsjekt = (nyTittel: string) => {
@@ -161,8 +176,7 @@ export default function Trykkfall({
                   'Er du sikker på at du vil slette nåværende tall i tabellen og tilbakestille til standard Excel-eksempelet?',
                 bekreftTekst: '🔄 Bekreft tilbakestilling',
                 onBekreft: () => {
-                  setBudsjett({ ...EKSEMPEL_BUDSJETT });
-                  setRader(EKSEMPEL_FORDELING.map((r) => ({ ...r })));
+                  tilbakestillAlt();
                   melding('Tilbakestilt til Excel-eksempelet');
                 },
               })
@@ -199,12 +213,13 @@ export default function Trykkfall({
                     setBudsjett((b) => ({ ...b, [f.nokkel]: n }));
                     if (f.nokkel === 'hovedtrykk' && prosjektData && onOppdaterProsjekt) {
                       const bar = Math.round((n / 100) * 100) / 100;
+                      const oppdaterDynamisk = prosjektData.vanntrykk.dynamiskBar !== null;
                       onOppdaterProsjekt({
                         ...prosjektData,
                         kilde: 'bruker',
                         vanntrykk: {
                           ...prosjektData.vanntrykk,
-                          statiskBar: bar,
+                          ...(oppdaterDynamisk ? { dynamiskBar: bar } : { statiskBar: bar }),
                           antatt: false,
                         },
                       });
@@ -228,7 +243,7 @@ export default function Trykkfall({
                   setBudsjett((b) => ({ ...b, hovedtrykk: 400 }));
                   melding('Satte hovedtrykk etter trykkreduksjonsventil til 400 kPa (4,0 bar)');
                 }}
-                className="mt-2 rounded bg-rose-700 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-rose-600"
+                className="mt-2 inline-flex min-h-[40px] items-center rounded bg-rose-700 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-rose-600"
               >
                 🔧 Sett til 400 kPa (4,0 bar etter reduksjonsventil)
               </button>
@@ -279,7 +294,7 @@ export default function Trykkfall({
             qS = qN1 + 0,015·(ΣqN − qN1) + 0,17·√(ΣqN − qN1) &nbsp;|&nbsp; anbefalt maks hastighet:{' '}
             <strong className="text-slate-200">{fmt(MAKS_HASTIGHET_FORDELING, 1)} m/s</strong>
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Knapp
               variant="advarsel"
               onClick={() => {
@@ -317,7 +332,7 @@ export default function Trykkfall({
                       <input
                         value={rader[i].navn}
                         onChange={(e) => oppdater(i, { navn: e.target.value })}
-                        className="w-28 min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-semibold text-xs outline-none focus:border-emerald-500"
+                        className="w-28 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold outline-none focus:border-emerald-500"
                       />
                     </td>
                     <td className="px-1 py-1.5"><TallFelt className="w-20" ariaLabel="ΣqN" verdi={rader[i].sumQn} onChange={(n) => oppdater(i, { sumQn: n })} /></td>
@@ -329,7 +344,7 @@ export default function Trykkfall({
                       <select
                         value={rader[i].dim}
                         onChange={(e) => oppdater(i, { dim: Number(e.target.value) })}
-                        className="min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-bold text-xs outline-none focus:border-emerald-500"
+                        className="rounded border border-slate-600 bg-slate-900 px-2 py-1 font-bold outline-none focus:border-emerald-500"
                       >
                         {ROR_TABELL.map((r) => (
                           <option key={r.dim} value={r.dim}>{r.dim}</option>

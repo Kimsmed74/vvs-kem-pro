@@ -434,6 +434,8 @@ export function genererFremdriftOgTidMarkdown(opts: {
     `| :--- | :---: | :---: | :---: | :---: |`,
   ];
 
+  const sumBudsjettTimer = FAG_FASER.reduce((s, f) => s + f.budsjettTimerStandard, 0);
+
   for (const def of FAG_FASER) {
     const medgaatt = timerPerFase[def.id] || 0;
     const andel = sumTimer > 0 ? ((medgaatt / sumTimer) * 100).toFixed(1) : '0,0';
@@ -442,7 +444,7 @@ export function genererFremdriftOgTidMarkdown(opts: {
   }
 
   linjer.push(
-    `| **TOTALT MEDGÅTT** | **${fmt(sumTimer, 1)} t** | **130 t** | **100 %** | **${honorarKr.toLocaleString('no-NO')} kr eks. mva** |`,
+    `| **TOTALT MEDGÅTT** | **${fmt(sumTimer, 1)} t** | **${sumBudsjettTimer} t** | **100 %** | **${honorarKr.toLocaleString('no-NO')} kr eks. mva** |`,
     ``,
     `## 3. Loggførte Arbeidsøkter & Fagnotater`,
     `| Dato | Utførende | Fagfase | Beskrivelse | Timer |`,

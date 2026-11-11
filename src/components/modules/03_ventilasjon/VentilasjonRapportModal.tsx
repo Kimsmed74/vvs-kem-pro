@@ -92,14 +92,14 @@ export default function VentilasjonRapportModal({
       aria-labelledby="ventilasjon-rapport-tittel"
       className="vvs-rapport-modal fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/85 p-2 sm:p-4 backdrop-blur-sm print:static print:inset-auto print:block print:overflow-visible print:bg-white print:p-0 print:m-0 print:w-full print:shadow-none print:border-none"
     >
-      <div className="vvs-rapport-ramme relative w-full max-w-5xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl my-6 flex flex-col max-h-[92vh] print:static print:my-0 print:max-w-none print:border-none print:bg-white print:shadow-none print:w-full print:max-h-none print:block">
+      <div className="vvs-rapport-ramme relative w-full max-w-5xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl my-2 sm:my-6 flex flex-col max-h-[94vh] print:static print:my-0 print:max-w-none print:border-none print:bg-white print:shadow-none print:w-full print:max-h-none print:block">
         {/* Modal Topplinje (skjules under utskrift) */}
         <div
           data-print-meny="true"
-          className="flex items-center justify-between border-b border-slate-700/80 px-6 py-4 bg-slate-950/60 rounded-t-2xl print:hidden"
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/80 px-4 py-3 sm:px-6 sm:py-4 bg-slate-950/60 rounded-t-2xl print:hidden"
         >
           <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-600/20 border border-cyan-500/40 text-lg">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-600/20 border border-cyan-500/40 text-lg">
               💨
             </span>
             <div>
@@ -112,11 +112,11 @@ export default function VentilasjonRapportModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-500 transition"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow hover:bg-emerald-500 transition"
               title="Skriv ut eller lagre som PDF"
             >
               🖨️ Skriv ut / Lagre PDF
@@ -127,7 +127,7 @@ export default function VentilasjonRapportModal({
                 const ok = await kopierTilUtklippstavle(markdownTekst);
                 melding(ok ? '📋 Protokoll kopiert til utklippstavlen' : 'Kunne ikke kopiere');
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition"
             >
               📋 Kopier
             </button>
@@ -138,14 +138,15 @@ export default function VentilasjonRapportModal({
                 lastNedTekst(filnavn, markdownTekst);
                 melding('📥 Markdown lastet ned for NotebookLM / KI!');
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-700 transition"
             >
               📥 Last ned .md
             </button>
             <button
               type="button"
               onClick={onLukk}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
+              aria-label="Lukk protokoll"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white"
             >
               ✕
             </button>
@@ -153,10 +154,10 @@ export default function VentilasjonRapportModal({
         </div>
 
         {/* Innhold – formatert som et A4-ark */}
-        <div className="overflow-y-auto p-6 space-y-6 bg-slate-900 text-slate-100 print:bg-white print:text-slate-900 print:p-0 print:m-0 print:space-y-4 print:overflow-visible print:w-full">
+        <div className="overflow-y-auto p-3 sm:p-6 space-y-6 bg-slate-900 text-slate-100 print:bg-white print:text-slate-900 print:p-0 print:m-0 print:space-y-4 print:overflow-visible print:w-full">
           <div
             id="ventilasjon-a4-rapport-utskrift"
-            className="vvs-rapport-ark border border-slate-700/80 bg-white text-slate-900 p-8 rounded-xl shadow-lg print:border-none print:shadow-none print:p-0 print:m-0 max-w-4xl mx-auto print:max-w-none print:w-full"
+            className="vvs-rapport-ark border border-slate-700/80 bg-white text-slate-900 p-4 sm:p-8 rounded-xl shadow-lg print:border-none print:shadow-none print:p-0 print:m-0 max-w-4xl mx-auto print:max-w-none print:w-full"
           >
             {/* Brevhode */}
             <div className="border-b-2 border-cyan-700 pb-4 flex flex-wrap justify-between items-start gap-4">
@@ -388,14 +389,17 @@ export default function VentilasjonRapportModal({
               </div>
               <p className="mt-1 text-xs text-slate-700 leading-relaxed">
                 Innreguleringen er utført i henhold til NS-EN 12599. Anlegget har et beregnet energitall SFP på{' '}
-                <strong>{fmt(resultat.beregnetSfp, 2)} kW/(m³/s)</strong> ved nominell luftmengde, noe som
-                tilfredsstiller energikravet i TEK17 (§ 14-2). Trykkforholdene i bygget er kontrollert og sikrer{' '}
+                <strong>{fmt(resultat.beregnetSfp, 2)} kW/(m³/s)</strong> ved målt luftmengde, noe som{' '}
+                {resultat.sfpOkTek17
+                  ? 'tilfredsstiller energikravet i TEK17 (§ 14-2, ≤ 1,5 kW/(m³/s))'
+                  : 'overskrider energikravet i TEK17 (§ 14-2, ≤ 1,5 kW/(m³/s)) og krever gjennomgang av vifteeffekt/kanalføring'}
+                . Trykkforholdene i bygget er kontrollert og sikrer{' '}
                 {resultat.balanseVurdering.beskrivelse.toLowerCase()}
               </p>
             </div>
 
             {/* Signaturblokk */}
-            <div className="mt-8 pt-4 border-t border-slate-200 grid grid-cols-2 gap-8 text-xs text-slate-700">
+            <div className="mt-8 pt-4 border-t border-slate-200 grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-8 text-xs text-slate-700">
               <div>
                 <div className="font-bold text-slate-900">Utførende Innreguleringstekniker:</div>
                 <div className="h-10 border-b border-dashed border-slate-300 mt-2" />

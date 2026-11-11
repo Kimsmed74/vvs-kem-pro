@@ -95,6 +95,7 @@ export default function FremdriftRapportModal({
   if (!aapen) return null;
 
   const sumTimer = tidssporing.manuelleTimer.reduce((s, p) => s + (Number(p.timer) || 0), 0);
+  const sumBudsjettTimer = FAG_FASER.reduce((s, f) => s + f.budsjettTimerStandard, 0);
   const honorarKr = Math.round(sumTimer * STANDARD_RIV_TIMEPRIS_KR);
   const sumInnspartTimer = Math.round((fremdrift.aiInnspartTidMinutterTotalt / 60) * 10) / 10;
 
@@ -156,7 +157,8 @@ export default function FremdriftRapportModal({
             <button
               type="button"
               onClick={onLukk}
-              className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
+              aria-label="Lukk rapport"
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
             >
               ✕
             </button>
@@ -323,7 +325,7 @@ export default function FremdriftRapportModal({
                     <td className="p-2.5 text-center text-emerald-400 print:text-black">
                       {fmt(sumTimer, 1)} t
                     </td>
-                    <td className="p-2.5 text-center text-slate-400 print:text-black">130 t</td>
+                    <td className="p-2.5 text-center text-slate-400 print:text-black">{sumBudsjettTimer} t</td>
                     <td className="p-2.5 text-center">100 %</td>
                     <td className="p-2.5 text-right font-sans text-emerald-300 print:text-black">
                       {honorarKr.toLocaleString('no-NO')} kr eks. mva

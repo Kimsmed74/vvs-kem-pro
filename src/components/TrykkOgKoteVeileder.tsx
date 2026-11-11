@@ -285,7 +285,7 @@ export default function TrykkOgKoteVeileder({
                       sted: e.target.value,
                     })
                   }
-                  className="min-w-[200px] flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-100 outline-none focus:border-sky-500"
+                  className="min-h-[38px] w-full min-w-0 rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-sky-500 sm:min-w-[200px] sm:flex-1"
                 />
                 <input
                   type="text"
@@ -299,7 +299,7 @@ export default function TrykkOgKoteVeileder({
                       matrikkel: e.target.value,
                     })
                   }
-                  className="w-36 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 outline-none focus:border-sky-500"
+                  className="min-h-[38px] w-full rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-sky-500 sm:w-36"
                 />
               </>
             ) : (
@@ -313,7 +313,7 @@ export default function TrykkOgKoteVeileder({
               type="button"
               onClick={slaaOppKartverketDirekte}
               disabled={lasterKartverket}
-              className="inline-flex min-h-[34px] items-center gap-1 rounded-lg border border-sky-600/80 bg-sky-950/80 px-2.5 py-1 text-[11px] font-bold text-sky-200 transition hover:bg-sky-900/80 disabled:opacity-50"
+              className="inline-flex min-h-[40px] items-center gap-1 rounded-lg border border-sky-600/80 bg-sky-950/80 px-3 py-1.5 text-[11px] font-bold text-sky-200 transition hover:bg-sky-900/80 disabled:opacity-50"
               title="Slå opp Gnr/Bnr, kommune og terrengkote (NN2000) fra Kartverkets åpne API"
             >
               {lasterKartverket ? '⏳ Henter Kartverket...' : '🗺️ Kartverket-oppslag (Gnr/Bnr & NN2000)'}
@@ -360,7 +360,7 @@ export default function TrykkOgKoteVeileder({
                   value={prosjekt.vanntrykk.statiskBar ?? ''}
                   placeholder="f.eks. 4.5"
                   onChange={(e) => oppdaterTall('statiskBar', e.target.value)}
-                  className={`w-24 min-h-[38px] rounded border px-2 py-1 font-mono text-base sm:text-xs font-bold outline-none ${
+                  className={`w-20 rounded border px-1.5 py-0.5 font-mono text-xs font-bold outline-none ${
                     over6Bar
                       ? 'border-rose-500 bg-rose-950/60 text-rose-200'
                       : 'border-slate-700 bg-slate-900 text-sky-300 focus:border-emerald-500'
@@ -395,7 +395,7 @@ export default function TrykkOgKoteVeileder({
                   value={prosjekt.vanntrykk.dynamiskBar ?? ''}
                   placeholder="f.eks. 3.8"
                   onChange={(e) => oppdaterTall('dynamiskBar', e.target.value)}
-                  className="w-24 min-h-[38px] rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-base sm:text-xs font-bold text-sky-300 outline-none focus:border-emerald-500"
+                  className="w-20 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-xs font-bold text-sky-300 outline-none focus:border-emerald-500"
                 />
                 <span className="text-[10px] text-slate-400">bar</span>
               </div>
@@ -426,7 +426,7 @@ export default function TrykkOgKoteVeileder({
                   value={prosjekt.koter.itrKum ?? ''}
                   placeholder="ITK moh"
                   onChange={(e) => oppdaterTall('itrKum', e.target.value)}
-                  className="w-24 min-h-[38px] rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-base sm:text-xs text-sky-300 outline-none focus:border-emerald-500"
+                  className="w-20 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-xs text-sky-300 outline-none focus:border-emerald-500"
                 />
                 <span className="text-[10px] text-slate-400">moh</span>
               </div>
@@ -454,7 +454,7 @@ export default function TrykkOgKoteVeileder({
                   value={prosjekt.koter.gulv[0]?.kote ?? ''}
                   placeholder="Sluk moh"
                   onChange={(e) => oppdaterTall('lavesteSluk', e.target.value)}
-                  className="w-24 min-h-[38px] rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-base sm:text-xs text-amber-300 outline-none focus:border-emerald-500"
+                  className="w-20 rounded border border-slate-700 bg-slate-900 px-1.5 py-0.5 font-mono text-xs text-amber-300 outline-none focus:border-emerald-500"
                 />
                 <span className="text-[10px] text-slate-400">moh</span>
               </div>

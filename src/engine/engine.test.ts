@@ -6,6 +6,7 @@ import {
   autoDimensjon,
   beregnKobling,
   beregnQs,
+  innvendigDiameter,
   ugunstigsteKrets,
   beregnStrekk,
   beregnTrykkbudsjett,
@@ -129,4 +130,46 @@ describe('Bereder (San vvb.xlsx)', () => {
   it('døgnenergi = 45,825 kWh', () => expect(r.kwhDogn).toBeCloseTo(45.825, 9));
   it('kolbeeffekt = 11,45625 kW', () => expect(r.effekt).toBeCloseTo(11.45625, 9));
   it('beredervolum = 196,392857142857 l', () => expect(r.volum).toBeCloseTo(196.392857142857, 9));
+});
+
+describe('Robusthet mot NaN og ukjent dimensjon', () => {
+  it('saniterer NaN-inndata i trykkbudsjett, strekk og koblingsledning', () => {
+    const bud = beregnTrykkbudsjett({
+      hovedtrykk: Number.NaN,
+      resttrykk: 100,
+      loftehoyde: Number.NaN,
+      enkeltmotstand: 0,
+      rordelerProsent: 20,
+      rorlengde: 10,
+    });
+    expect(Number.isFinite(bud.dispFriksjon)).toBe(true);
+    expect(Number.isFinite(bud.midlereR!)).toBe(true);
+
+    const strekk = beregnStrekk({
+      navn: 'tom',
+      sumQn: Number.NaN,
+      qn1: Number.NaN,
+      qkont: Number.NaN,
+      dim: 15,
+      l: Number.NaN,
+    });
+    expect(strekk.qdim).toBe(0);
+    expect(strekk.rxl).toBe(0);
+
+    const kob = beregnKobling({
+      navn: 'kob',
+      sumQn: 0,
+      qn1: 0,
+      qkont: 0.2,
+      dim: 15,
+      l: 2,
+      armaturTap: Number.NaN,
+    });
+    expect(Number.isFinite(kob.kretsTap)).toBe(true);
+  });
+
+  it('faller tilbake trygt ved ukjent rørdimensjon uten å kaste unntak', () => {
+    expect(innvendigDiameter(20)).toBe(19.0);
+    expect(innvendigDiameter(999)).toBe(50.0);
+  });
 });

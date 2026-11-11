@@ -304,7 +304,7 @@ export default function Koter({
             <tbody className="divide-y divide-slate-700">
               {rader.map(({ e, r }, i) => (
                 <tr key={i} className={r.selvfallOk ? '' : 'bg-rose-950/30'}>
-                  <td className="px-2 py-1.5"><input value={e.navn} onChange={(ev) => oppdaterEtasje(i, { navn: ev.target.value })} className="w-32 min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-semibold text-xs outline-none focus:border-emerald-500" /></td>
+                  <td className="px-2 py-1.5"><input value={e.navn} onChange={(ev) => oppdaterEtasje(i, { navn: ev.target.value })} className="w-32 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold outline-none focus:border-emerald-500" /></td>
                   <td className="px-1 py-1.5"><TallFelt className="w-24" ariaLabel="Kote" verdi={e.kote} onChange={(n) => oppdaterEtasje(i, { kote: n })} /></td>
                   <td className={`px-2 py-1.5 text-right font-mono font-bold ${r.selvfallOk ? 'text-emerald-400' : 'text-rose-400'}`}>{fmt(r.margin)}</td>
                   <td className="px-2 py-1.5 text-right font-mono text-slate-400">{fmt(r.krav)}</td>
@@ -386,12 +386,12 @@ export default function Koter({
       </Kort>
 
       <Kort tittel="Overvann og fordrøyning" ikon="🌧️">
-        <div className="space-y-2 text-xs text-slate-300">
+        <div className="space-y-3 text-xs text-slate-300">
           {flater.map((f, i) => (
-            <div key={i} className="grid grid-cols-12 items-end gap-2">
-              <label className="col-span-4">Flate<input value={f.navn} onChange={(e) => oppdaterFlate(i, { navn: e.target.value })} className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-2 font-semibold outline-none focus:border-emerald-500" /></label>
-              <label className="col-span-4">Areal (m²)<TallFelt className="mt-1 w-full" ariaLabel="Areal" verdi={f.areal} onChange={(n) => oppdaterFlate(i, { areal: n })} /></label>
-              <label className="col-span-3">φ<TallFelt className="mt-1 w-full" ariaLabel="Avrenningsfaktor" verdi={f.phi} onChange={(n) => oppdaterFlate(i, { phi: n })} /></label>
+            <div key={i} className="grid grid-cols-1 items-end gap-2 rounded-lg border border-slate-800/80 bg-slate-950/40 p-2.5 sm:grid-cols-12 sm:border-0 sm:bg-transparent sm:p-0">
+              <label className="sm:col-span-4">Flate<input value={f.navn} onChange={(e) => oppdaterFlate(i, { navn: e.target.value })} className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-2 font-semibold outline-none focus:border-emerald-500" /></label>
+              <label className="sm:col-span-4">Areal (m²)<TallFelt className="mt-1 w-full" ariaLabel="Areal" verdi={f.areal} onChange={(n) => oppdaterFlate(i, { areal: n })} /></label>
+              <label className="sm:col-span-3">φ<TallFelt className="mt-1 w-full" ariaLabel="Avrenningsfaktor" verdi={f.phi} onChange={(n) => oppdaterFlate(i, { phi: n })} /></label>
               <button
                 type="button"
                 aria-label={`Slett ${f.navn}`}
@@ -405,7 +405,7 @@ export default function Koter({
                     onBekreft: () => oppdaterFlateListe(flater.filter((_, idx) => idx !== i)),
                   })
                 }
-                className="col-span-1 inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-400"
+                className="inline-flex min-h-[44px] items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 hover:border-rose-700 hover:bg-rose-950/50 hover:text-rose-400 sm:col-span-1"
               >
                 ✕
               </button>
@@ -413,7 +413,7 @@ export default function Koter({
           ))}
           <button type="button" onClick={() => oppdaterFlateListe([...flater, { navn: 'Ny flate', areal: 100, phi: 0.9 }])} className="min-h-[44px] rounded-lg bg-slate-700 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-600">+ Legg til flate</button>
         </div>
-        <div className="mt-4 grid grid-cols-3 gap-3 text-xs text-slate-300">
+        <div className="mt-4 grid grid-cols-1 gap-3 text-xs text-slate-300 sm:grid-cols-3">
           <label>Regnintensitet i (l/s·ha), klimajustert<TallFelt className="mt-1 w-full" ariaLabel="Regnintensitet" verdi={intensitet} onChange={setIntensitet} /></label>
           <label>Maks påslipp (l/s)<TallFelt className="mt-1 w-full" ariaLabel="Maks påslipp" verdi={maksUt} onChange={setMaksUt} /></label>
           <label>Varighet (min)<TallFelt className="mt-1 w-full" ariaLabel="Varighet" verdi={varighet} onChange={setVarighet} /></label>

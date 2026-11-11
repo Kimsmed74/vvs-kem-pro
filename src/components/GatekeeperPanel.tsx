@@ -114,22 +114,15 @@ export default function GatekeeperPanel({
   };
 
   const kopierAlleTreUtkast = async () => {
-    const samlet = [
-      '====================================================================',
-      epostData.mottakerKontroll.utkast.vaEtat.tittel.toUpperCase(),
-      '====================================================================',
-      epostData.mottakerKontroll.utkast.vaEtat.epostTekst,
-      '',
-      '====================================================================',
-      epostData.mottakerKontroll.utkast.geodata.tittel.toUpperCase(),
-      '====================================================================',
-      epostData.mottakerKontroll.utkast.geodata.epostTekst,
-      '',
-      '====================================================================',
-      epostData.mottakerKontroll.utkast.arkitektInternt.tittel.toUpperCase(),
-      '====================================================================',
-      epostData.mottakerKontroll.utkast.arkitektInternt.epostTekst,
-    ].join('\n');
+    const samlet = epostData.mottakerKontroll.alleUtkast
+      .flatMap((u, idx) => [
+        ...(idx > 0 ? [''] : []),
+        '====================================================================',
+        u.tittel.toUpperCase(),
+        '====================================================================',
+        u.epostTekst,
+      ])
+      .join('\n');
     const ok = await kopierTilUtklippstavle(samlet);
     setVisEpostMal(true);
     melding(

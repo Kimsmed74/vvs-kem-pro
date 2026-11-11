@@ -106,7 +106,7 @@ export default function GlobalRapportBar({
         </button>
 
         {ekstraKnapper && (
-          <div className="ml-1 pl-2 border-l border-slate-700 flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 sm:ml-1 sm:border-l sm:border-slate-700 sm:pl-2">
             {ekstraKnapper}
           </div>
         )}
