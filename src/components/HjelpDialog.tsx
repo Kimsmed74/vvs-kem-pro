@@ -177,7 +177,7 @@ export default function HjelpDialog({ onLukk, onStartVeiviser, onApneInnstilling
               type="button"
               onClick={() => setFane(f.id)}
               aria-current={f.id === fane ? 'page' : undefined}
-              className={`whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
+              className={`inline-flex min-h-[44px] items-center whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
                 f.id === fane
                   ? 'bg-emerald-950 text-emerald-300'
                   : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'

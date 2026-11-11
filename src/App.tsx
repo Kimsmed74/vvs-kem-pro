@@ -773,7 +773,7 @@ function AppInnhold() {
       )}
 
       {/* Hovedinnhold */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col w-full max-w-full overflow-x-hidden">
         {/* Topplinje med menyknapp (mobil/nettbrett), prosjektvelger, + Nytt prosjekt, Slett prosjekt, Filer, Eksport/Import (.json), globale lover og Hjelp */}
         <header className="border-b border-slate-800 bg-slate-900 px-3 py-3 shadow-sm sm:px-6">
           <div className="flex flex-col gap-2.5">
@@ -1004,7 +1004,7 @@ function AppInnhold() {
         </header>
 
         {/* Hovedvisning */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-6">
+        <main className="flex-1 overflow-y-auto p-3.5 sm:p-6 w-full max-w-full overflow-x-hidden">
           {visMoteOpptaker && (
             <div className="mb-5">
               <MoteOpptaker
@@ -1357,12 +1357,12 @@ function AppInnhold() {
         </nav>
       </div>
 
-      {/* Fast AI-chat-knapp nede i høyre hjørne */}
+      {/* Fast AI-chat-knapp nede i høyre hjørne (tilpasset med clearance for mobilbunn-menyen) */}
       {!chatAgentId && (
         <button
           type="button"
           onClick={() => apneChatForAgent(aktivAgent?.id ?? sistBrukteAgentId)}
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-2xl transition hover:bg-emerald-500"
+          className="fixed bottom-16 right-4 sm:bottom-5 sm:right-5 z-30 flex items-center gap-2 rounded-full border border-emerald-400/60 bg-emerald-600 px-4 py-3 text-xs font-extrabold text-white shadow-2xl transition hover:bg-emerald-500"
         >
           <span className="text-base">💬</span>
           <span>
@@ -1482,7 +1482,7 @@ function NavKnapp({
       type="button"
       onClick={onClick}
       aria-current={aktiv ? 'page' : undefined}
-      className={`min-h-[44px] w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
+      className={`min-h-[44px] shrink-0 lg:w-full whitespace-nowrap rounded-lg px-3 py-2 text-left text-xs font-semibold transition ${
         aktiv
           ? 'border-l-2 border-emerald-400 bg-emerald-950 text-emerald-300'
           : fremhevet === 'rose'

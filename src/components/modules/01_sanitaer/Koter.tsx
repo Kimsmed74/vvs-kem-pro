@@ -304,7 +304,7 @@ export default function Koter({
             <tbody className="divide-y divide-slate-700">
               {rader.map(({ e, r }, i) => (
                 <tr key={i} className={r.selvfallOk ? '' : 'bg-rose-950/30'}>
-                  <td className="px-2 py-1.5"><input value={e.navn} onChange={(ev) => oppdaterEtasje(i, { navn: ev.target.value })} className="w-32 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold outline-none focus:border-emerald-500" /></td>
+                  <td className="px-2 py-1.5"><input value={e.navn} onChange={(ev) => oppdaterEtasje(i, { navn: ev.target.value })} className="w-32 min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-semibold text-xs outline-none focus:border-emerald-500" /></td>
                   <td className="px-1 py-1.5"><TallFelt className="w-24" ariaLabel="Kote" verdi={e.kote} onChange={(n) => oppdaterEtasje(i, { kote: n })} /></td>
                   <td className={`px-2 py-1.5 text-right font-mono font-bold ${r.selvfallOk ? 'text-emerald-400' : 'text-rose-400'}`}>{fmt(r.margin)}</td>
                   <td className="px-2 py-1.5 text-right font-mono text-slate-400">{fmt(r.krav)}</td>

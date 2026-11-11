@@ -81,7 +81,7 @@ export default function GlobalRapportBar({
         <button
           type="button"
           onClick={onApneRapport}
-          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-1.5 text-xs font-black text-white shadow-md transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-black text-white shadow-md transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
           title="Åpne utskriftsklar A4-rapport med formler, nøkkeltall og godkjenningsstempel for RIV"
         >
           <span>📄 Visuell rapport & PDF</span>
@@ -90,7 +90,7 @@ export default function GlobalRapportBar({
         <button
           type="button"
           onClick={onKopier}
-          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-200 transition hover:bg-slate-700 hover:text-white"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200 transition hover:bg-slate-700 hover:text-white"
           title="Kopier strukturert rapport / tabell til utklippstavlen"
         >
           <span>📋 Kopier rapport</span>
@@ -99,7 +99,7 @@ export default function GlobalRapportBar({
         <button
           type="button"
           onClick={onLastNedMd}
-          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-purple-700/80 bg-purple-950/60 px-3 py-1.5 text-xs font-bold text-purple-200 transition hover:bg-purple-900 hover:text-white"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-purple-700/80 bg-purple-950/60 px-3 py-2 text-xs font-bold text-purple-200 transition hover:bg-purple-900 hover:text-white"
           title="Last ned ren Markdown-tabell (.md) for bruk i Google NotebookLM eller KI-analyser"
         >
           <span>📥 Last ned .md (NotebookLM)</span>

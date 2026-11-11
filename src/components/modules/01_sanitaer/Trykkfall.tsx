@@ -317,7 +317,7 @@ export default function Trykkfall({
                       <input
                         value={rader[i].navn}
                         onChange={(e) => oppdater(i, { navn: e.target.value })}
-                        className="w-28 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold outline-none focus:border-emerald-500"
+                        className="w-28 min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-semibold text-xs outline-none focus:border-emerald-500"
                       />
                     </td>
                     <td className="px-1 py-1.5"><TallFelt className="w-20" ariaLabel="ΣqN" verdi={rader[i].sumQn} onChange={(n) => oppdater(i, { sumQn: n })} /></td>
@@ -329,7 +329,7 @@ export default function Trykkfall({
                       <select
                         value={rader[i].dim}
                         onChange={(e) => oppdater(i, { dim: Number(e.target.value) })}
-                        className="rounded border border-slate-600 bg-slate-900 px-2 py-1 font-bold outline-none focus:border-emerald-500"
+                        className="min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-bold text-xs outline-none focus:border-emerald-500"
                       >
                         {ROR_TABELL.map((r) => (
                           <option key={r.dim} value={r.dim}>{r.dim}</option>

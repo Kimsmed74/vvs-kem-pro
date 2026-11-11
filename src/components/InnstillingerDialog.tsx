@@ -40,7 +40,7 @@ export default function InnstillingerDialog({
                 value={nokkel}
                 onChange={(e) => setNokkel(e.target.value)}
                 placeholder="Lim inn nøkkelen din fra Google AI Studio"
-                className="min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-xs outline-none focus:border-emerald-500"
+                className="min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-base sm:text-xs outline-none focus:border-emerald-500"
               />
               <button
                 type="button"
@@ -56,7 +56,7 @@ export default function InnstillingerDialog({
             <input
               value={modell}
               onChange={(e) => setModell(e.target.value)}
-              className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-xs outline-none focus:border-emerald-500"
+              className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 font-mono text-base sm:text-xs outline-none focus:border-emerald-500"
             />
             <span className="mt-0.5 block text-[10px] font-normal text-slate-500">Standard: {STANDARD_MODELL}. Bytt hvis Google har endret modellnavn.</span>
           </label>
@@ -87,7 +87,7 @@ export default function InnstillingerDialog({
           <select
             value={k}
             onChange={(e) => setK(Number(e.target.value))}
-            className="mt-2 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-xs outline-none focus:border-emerald-500"
+            className="mt-2 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-base sm:text-xs outline-none focus:border-emerald-500"
           >
             <option value={0.95}>0,95 m – systemmanualen / kommunal VA-norm (strengest, anbefalt)</option>
             <option value={0.9}>0,90 m – TEK17 § 15-6(3) og § 15-8(3), preakseptert ytelse</option>

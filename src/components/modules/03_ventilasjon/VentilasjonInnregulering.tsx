@@ -285,14 +285,14 @@ ${resultat.ventiler
                     <input
                       value={v.rom}
                       onChange={(e) => oppdaterVentil(v.id, { rom: e.target.value })}
-                      className="w-44 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold text-slate-100 outline-none focus:border-cyan-500"
+                      className="w-44 min-h-[38px] rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold text-slate-100 outline-none focus:border-cyan-500 text-base sm:text-xs"
                     />
                   </td>
                   <td className="px-2 py-1.5 text-center">
                     <select
                       value={v.type}
                       onChange={(e) => oppdaterVentil(v.id, { type: e.target.value as 'tilluft' | 'avtrekk' })}
-                      className="rounded border border-slate-600 bg-slate-900 px-1.5 py-1 text-slate-200 text-xs"
+                      className="min-h-[38px] rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 text-base sm:text-xs"
                     >
                       <option value="tilluft">Tilluft</option>
                       <option value="avtrekk">Avtrekk</option>
@@ -315,7 +315,7 @@ ${resultat.ventiler
                           oppdaterVentil(v.id, { ventilId: undefined });
                         }
                       }}
-                      className="w-44 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 text-[11px] text-slate-200"
+                      className="w-48 min-h-[38px] rounded border border-slate-600 bg-slate-900 px-2 py-1 text-base sm:text-[11px] text-slate-200"
                     >
                       <option value="">-- Egendefinert --</option>
                       <optgroup label="Systemair (TFF, EFF, TFC, IRIS)">
@@ -345,7 +345,7 @@ ${resultat.ventiler
                     <input
                       value={v.dimensjon}
                       onChange={(e) => oppdaterVentil(v.id, { dimensjon: e.target.value })}
-                      className="w-14 rounded border border-slate-600 bg-slate-900 px-1 py-1 text-center font-mono text-slate-300"
+                      className="w-16 min-h-[38px] rounded border border-slate-600 bg-slate-900 px-1 py-1 text-center font-mono text-slate-300 text-base sm:text-xs"
                     />
                   </td>
                   <td className="px-1 py-1.5">
@@ -421,7 +421,7 @@ ${resultat.ventiler
                           onBekreft: () => setVentiler((prev) => prev.filter((x) => x.id !== v.id)),
                         })
                       }
-                      className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-400 hover:bg-rose-950 hover:text-rose-300"
+                      className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded text-slate-400 hover:bg-rose-950 hover:text-rose-300"
                     >
                       ✕
                     </button>

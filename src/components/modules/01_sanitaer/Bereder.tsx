@@ -124,57 +124,63 @@ export default function Bereder({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Kort tittel="Varmtvannsbehov (døgn)" ikon="🏨">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-slate-400">
-                <th className="pb-2">Utstyr</th><th className="pb-2 text-right">Antall</th><th className="pb-2 text-right">kWh/enhet</th><th className="pb-2 text-right">kWh/døgn</th><th />
-              </tr>
-            </thead>
-            <tbody>
-              {linjer.map((l, i) => (
-                <tr key={i}>
-                  <td className="py-1 pr-2"><input value={l.navn} onChange={(e) => oppdater(i, { navn: e.target.value })} className="w-full rounded border border-slate-600 bg-slate-900 px-2 py-1 outline-none focus:border-emerald-500" /></td>
-                  <td className="px-1"><TallFelt className="w-20" ariaLabel="Antall" verdi={l.antall} onChange={(n) => oppdater(i, { antall: n })} /></td>
-                  <td className="px-1"><TallFelt className="w-20" ariaLabel="kWh per enhet" verdi={l.kwhPerEnhet} onChange={(n) => oppdater(i, { kwhPerEnhet: n })} /></td>
-                  <td className="px-2 text-right font-mono">{fmt(l.antall * l.kwhPerEnhet, 3)}</td>
-                  <td>
-                    <button
-                      type="button"
-                      aria-label={`Slett ${l.navn}`}
-                      title="Slett utstyrslinje (krever bekreftelse)"
-                      onClick={() =>
-                        bekreftSlett({
-                          tittel: 'Slette utstyrslinje fra berederberegning?',
-                          elementNavn: `${l.navn} (${l.antall} stk × ${l.kwhPerEnhet} kWh)`,
-                          beskrivelse: `Er du sikker på at du vil slette «${l.navn}» fra varmtvannsbehovet?`,
-                          bekreftTekst: '🗑️ Slett utstyr',
-                          onBekreft: () =>
-                            setLinjer((x) => {
-                              const neste = x.filter((_, idx) => idx !== i);
-                              onEndring?.({ linjer: neste, ladetid, c, deltaT });
-                              return neste;
-                            }),
-                        })
-                      }
-                      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
-                    >
-                      ✕
-                    </button>
-                  </td>
+          <div className="overflow-x-auto rounded-lg border border-slate-700">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-slate-900 text-[11px] uppercase tracking-wider text-slate-300">
+                  <th className="px-2.5 py-2 text-left">Utstyr</th>
+                  <th className="px-2 py-2 text-right">Antall</th>
+                  <th className="px-2 py-2 text-right">kWh/enhet</th>
+                  <th className="px-2 py-2 text-right">kWh/døgn</th>
+                  <th className="px-2 py-2 text-center" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-700">
+                {linjer.map((l, i) => (
+                  <tr key={i} className="hover:bg-slate-700/30">
+                    <td className="px-2 py-1.5"><input value={l.navn} onChange={(e) => oppdater(i, { navn: e.target.value })} className="w-full min-w-[120px] rounded border border-slate-600 bg-slate-900 px-2 py-1 outline-none focus:border-emerald-500" /></td>
+                    <td className="px-1 py-1.5"><TallFelt className="w-20" ariaLabel="Antall" verdi={l.antall} onChange={(n) => oppdater(i, { antall: n })} /></td>
+                    <td className="px-1 py-1.5"><TallFelt className="w-20" ariaLabel="kWh per enhet" verdi={l.kwhPerEnhet} onChange={(n) => oppdater(i, { kwhPerEnhet: n })} /></td>
+                    <td className="px-2 py-1.5 text-right font-mono font-bold text-slate-200">{fmt(l.antall * l.kwhPerEnhet, 3)}</td>
+                    <td className="px-2 py-1.5 text-center">
+                      <button
+                        type="button"
+                        aria-label={`Slett ${l.navn}`}
+                        title="Slett utstyrslinje (krever bekreftelse)"
+                        onClick={() =>
+                          bekreftSlett({
+                            tittel: 'Slette utstyrslinje fra berederberegning?',
+                            elementNavn: `${l.navn} (${l.antall} stk × ${l.kwhPerEnhet} kWh)`,
+                            beskrivelse: `Er du sikker på at du vil slette «${l.navn}» fra varmtvannsbehovet?`,
+                            bekreftTekst: '🗑️ Slett utstyr',
+                            onBekreft: () =>
+                              setLinjer((x) => {
+                                const neste = x.filter((_, idx) => idx !== i);
+                                onEndring?.({ linjer: neste, ladetid, c, deltaT });
+                                return neste;
+                              }),
+                          })
+                        }
+                        className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg text-slate-400 hover:bg-rose-950/50 hover:text-rose-400"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="mt-3"><Knapp onClick={() => setLinjer((l) => [...l, { navn: 'Nytt utstyr', antall: 1, kwhPerEnhet: 1 }])}>+ Legg til utstyr</Knapp></div>
         </Kort>
 
         <Kort tittel="Lading & beredervolum" ikon="🔥">
-          <div className="grid grid-cols-3 gap-3 text-xs text-slate-300">
+          <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 sm:grid-cols-3">
             <label>Ladetid (timer)<TallFelt className="mt-1 w-full" ariaLabel="Ladetid" verdi={ladetid} onChange={setLadetid} /></label>
             <label>c (kJ/kg·K)<TallFelt className="mt-1 w-full" ariaLabel="Spesifikk varmekapasitet" verdi={c} onChange={setC} /></label>
             <label>ΔT (K)<TallFelt className="mt-1 w-full" ariaLabel="Temperaturdifferanse" verdi={deltaT} onChange={setDeltaT} /></label>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Resultat etikett="Døgnenergi" verdi={fmt(r.kwhDogn)} enhet="kWh" />
             <Resultat etikett="Kolbeeffekt" verdi={fmt(r.effekt)} enhet="kW" />
             <Resultat etikett="Beredervolum" verdi={fmt(r.volum, 0)} enhet="liter" tone="ok" />

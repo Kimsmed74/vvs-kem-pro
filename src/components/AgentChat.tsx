@@ -883,7 +883,7 @@ export default function AgentChat({
             }
           }}
           placeholder="Skriv f.eks. «Adressen er Kongsgata 10, 4005 Stavanger og laveste sluk er kote 12.5» eller lim inn (Ctrl+V) et VA-kart …"
-          className="h-20 w-full resize-none rounded-lg border border-slate-600 bg-slate-900 p-2 text-xs text-slate-100 outline-none focus:border-emerald-500"
+          className="h-20 w-full resize-none rounded-lg border border-slate-600 bg-slate-900 p-2 text-base sm:text-xs text-slate-100 outline-none focus:border-emerald-500"
         />
         <div className="mt-2 flex gap-2">
           <button

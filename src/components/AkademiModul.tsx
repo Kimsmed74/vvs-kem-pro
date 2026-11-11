@@ -79,11 +79,11 @@ export default function AkademiModul({
         </div>
 
         {/* 4 Hovedfaner */}
-        <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-800/80 pt-4">
+        <div className="mt-6 flex overflow-x-auto touch-pan-x flex-nowrap sm:flex-wrap gap-2 border-t border-slate-800/80 pt-4 pb-1">
           <button
             type="button"
             onClick={() => setAktivFane('fagkurs')}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'fagkurs'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -96,7 +96,7 @@ export default function AkademiModul({
           <button
             type="button"
             onClick={() => setAktivFane('agenter')}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'agenter'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -109,7 +109,7 @@ export default function AkademiModul({
           <button
             type="button"
             onClick={() => setAktivFane('brukerveiledning')}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'brukerveiledning'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -122,7 +122,7 @@ export default function AkademiModul({
           <button
             type="button"
             onClick={() => setAktivFane('notebooklm')}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
+            className={`flex shrink-0 min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
               aktivFane === 'notebooklm'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
                 : 'border border-slate-700 bg-slate-900/80 text-slate-300 hover:bg-slate-800 hover:text-white'

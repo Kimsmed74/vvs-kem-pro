@@ -691,7 +691,7 @@ export default function MoteOpptaker({
           value={mellombelsTekst ? `${transkripsjon}\n${mellombelsTekst}` : transkripsjon}
           onChange={(e) => setTranskripsjon(e.target.value)}
           placeholder="Start opptak for å transkribere møtet kontinuerlig, eller skriv/lim inn stikkord fra befaring (f.eks. «Adresse: Friheim 49, BRA 1200 m², ITK +14,20, laveste sluk +12,50, statisk vanntrykk 6,4 bar»)..."
-          className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950/90 p-3 text-xs leading-relaxed text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+          className="mt-1.5 w-full rounded-lg border border-slate-700 bg-slate-950/90 p-3 text-base sm:text-xs leading-relaxed text-slate-100 placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
         />
 
         {/* Live deteksjon mens opptaket pågår */}

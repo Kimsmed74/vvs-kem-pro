@@ -246,7 +246,7 @@ ${resultat.strenger
                       <input
                         value={s.navn}
                         onChange={(e) => oppdaterStreng(s.id, { navn: e.target.value })}
-                        className="w-44 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold text-slate-100 outline-none focus:border-emerald-500"
+                        className="w-44 min-h-[38px] rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold text-slate-100 outline-none focus:border-emerald-500 text-base sm:text-xs"
                       />
                       {s.erIndekskurs && (
                         <span className="rounded bg-amber-500/20 border border-amber-500/40 px-1 py-0.5 text-[9px] font-bold text-amber-300">
@@ -259,7 +259,7 @@ ${resultat.strenger
                     <select
                       value={s.type}
                       onChange={(e) => oppdaterStreng(s.id, { type: e.target.value as HydroniskSystemType })}
-                      className="rounded border border-slate-600 bg-slate-900 px-1.5 py-1 text-slate-200 text-xs"
+                      className="min-h-[38px] rounded border border-slate-600 bg-slate-900 px-2 py-1 text-slate-200 text-base sm:text-xs"
                     >
                       <option value="varme">Varme</option>
                       <option value="kjoling">Kjøling</option>
@@ -282,7 +282,7 @@ ${resultat.strenger
                           oppdaterStreng(s.id, { ventilId: undefined });
                         }
                       }}
-                      className="w-40 rounded border border-slate-600 bg-slate-900 px-1.5 py-1 text-[11px] text-slate-200"
+                      className="w-44 min-h-[38px] rounded border border-slate-600 bg-slate-900 px-2 py-1 text-base sm:text-[11px] text-slate-200"
                     >
                       <option value="">-- Egendefinert --</option>
                       <optgroup label="IMI TA STAD (Manuell)">
@@ -333,7 +333,7 @@ ${resultat.strenger
                             oppdaterStreng(s.id, { presetId: undefined });
                           }
                         }}
-                        className="w-20 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-[9px] text-slate-300"
+                        className="w-24 min-h-[32px] rounded border border-slate-700 bg-slate-900 px-1 py-1 text-base sm:text-[10px] text-slate-300"
                       >
                         <option value="">Tilpasset</option>
                         {DELTA_T_PRESETS.map((p) => (
@@ -448,7 +448,7 @@ ${resultat.strenger
                           onBekreft: () => setStrenger((prev) => prev.filter((x) => x.id !== s.id)),
                         })
                       }
-                      className="inline-flex h-8 w-8 items-center justify-center rounded text-slate-400 hover:bg-rose-950 hover:text-rose-300"
+                      className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded text-slate-400 hover:bg-rose-950 hover:text-rose-300"
                     >
                       ✕
                     </button>

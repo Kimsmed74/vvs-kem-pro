@@ -51,7 +51,7 @@ export function TallFelt({
           const n = parseFloat(e.target.value.replace(',', '.'));
           onChange(Number.isFinite(n) ? n : 0);
         }}
-        className={`min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-900 py-2 pl-2.5 text-right font-mono text-sm text-slate-100 outline-none focus:border-emerald-500 ${enhet ? 'pr-10' : 'pr-2.5'}`}
+        className={`min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-900 py-2 pl-2.5 text-right font-mono text-base sm:text-sm text-slate-100 outline-none focus:border-emerald-500 ${enhet ? 'pr-10' : 'pr-2.5'}`}
       />
       {enhet && <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-500">{enhet}</span>}
     </span>

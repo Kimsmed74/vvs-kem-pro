@@ -132,14 +132,14 @@ export default function Koblingsledning({ prosjekt, melding }: Props) {
               {beregnet.map((b, i) => (
                 <tr key={i} className={i === ugunstigst ? 'bg-amber-950/30' : 'hover:bg-slate-700/30'}>
                   <td className="px-2 py-1.5">
-                    <input value={rader[i].navn} onChange={(e) => oppdater(i, { navn: e.target.value })} className="w-32 rounded border border-slate-600 bg-slate-900 px-2 py-1 font-semibold outline-none focus:border-emerald-500" />
+                    <input value={rader[i].navn} onChange={(e) => oppdater(i, { navn: e.target.value })} className="w-32 min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-semibold text-xs outline-none focus:border-emerald-500" />
                   </td>
                   <td className="px-1 py-1.5"><TallFelt className="w-16" ariaLabel="ΣqN" verdi={rader[i].sumQn} onChange={(n) => oppdater(i, { sumQn: n })} /></td>
                   <td className="px-1 py-1.5"><TallFelt className="w-16" ariaLabel="qN1" verdi={rader[i].qn1} onChange={(n) => oppdater(i, { qn1: n })} /></td>
                   <td className="px-1 py-1.5"><TallFelt className="w-16" ariaLabel="qkont" verdi={rader[i].qkont} onChange={(n) => oppdater(i, { qkont: n })} /></td>
                   <td className="bg-slate-900/50 px-2 py-1.5 text-right font-mono font-bold">{fmt(b.qdim, 3)}</td>
                   <td className="px-1 py-1.5 text-center">
-                    <select value={rader[i].dim} onChange={(e) => oppdater(i, { dim: Number(e.target.value) })} className="rounded border border-slate-600 bg-slate-900 px-2 py-1 font-bold outline-none">
+                    <select value={rader[i].dim} onChange={(e) => oppdater(i, { dim: Number(e.target.value) })} className="min-h-[40px] rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 font-bold text-xs outline-none focus:border-emerald-500">
                       {ROR_TABELL.map((r) => <option key={r.dim} value={r.dim}>{r.dim}</option>)}
                     </select>
                   </td>

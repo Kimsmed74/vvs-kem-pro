@@ -157,7 +157,7 @@ export function fraSkjema(f: Skjema, base: ProsjektData): { prosjekt?: ProsjektD
   return feil.length > 0 ? { feil } : { prosjekt, feil };
 }
 
-const inputKlasse = 'mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-500';
+const inputKlasse = 'mt-1 min-h-[44px] w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-base sm:text-sm text-slate-100 outline-none focus:border-emerald-500';
 
 function Felt({ etikett, hjelp, children, className = '' }: { etikett: string; hjelp?: string; children: ReactNode; className?: string }) {
   return (

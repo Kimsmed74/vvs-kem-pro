@@ -374,11 +374,11 @@ export default function ProsjektDashbord({
       </div>
 
       {/* 3 Hovedfaner */}
-      <div className="flex border-b border-slate-800">
+      <div className="flex overflow-x-auto border-b border-slate-800 touch-pan-x">
         <button
           type="button"
           onClick={() => setAktivFane('alle_prosjekter')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
+          className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition whitespace-nowrap ${
             aktivFane === 'alle_prosjekter'
               ? 'border-emerald-500 text-emerald-300 bg-emerald-950/20'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -391,7 +391,7 @@ export default function ProsjektDashbord({
         <button
           type="button"
           onClick={() => setAktivFane('mangelliste')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
+          className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition whitespace-nowrap ${
             aktivFane === 'mangelliste'
               ? 'border-amber-500 text-amber-300 bg-amber-950/20'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -406,7 +406,7 @@ export default function ProsjektDashbord({
         <button
           type="button"
           onClick={() => setAktivFane('tidssporing')}
-          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition ${
+          className={`inline-flex min-h-[44px] shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-xs font-bold transition whitespace-nowrap ${
             aktivFane === 'tidssporing'
               ? 'border-indigo-500 text-indigo-300 bg-indigo-950/20'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -849,7 +849,7 @@ export default function ProsjektDashbord({
                   value={nyTimer}
                   onChange={(e) => setNyTimer(e.target.value)}
                   placeholder="f.eks. 3.5"
-                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-emerald-300"
+                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 font-mono text-emerald-300 text-base sm:text-xs"
                 />
               </div>
 
@@ -858,7 +858,7 @@ export default function ProsjektDashbord({
                 <select
                   value={nyFase}
                   onChange={(e) => setNyFase(e.target.value as FagFase)}
-                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white"
+                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white text-base sm:text-xs"
                 >
                   {FAG_FASER.map((f) => (
                     <option key={f.id} value={f.id}>
@@ -874,7 +874,7 @@ export default function ProsjektDashbord({
                   type="text"
                   value={nyUtforende}
                   onChange={(e) => setNyUtforende(e.target.value)}
-                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white"
+                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-2 text-white text-base sm:text-xs"
                 />
               </div>
 
@@ -885,14 +885,14 @@ export default function ProsjektDashbord({
                   placeholder="f.eks. Dimensjonert trykkfall forbruksvann iht. Byggforsk 553.102, kontrollert rørføringer..."
                   value={nyBeskrivelse}
                   onChange={(e) => setNyBeskrivelse(e.target.value)}
-                  className="min-h-[42px] w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white placeholder-slate-500"
+                  className="min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white placeholder-slate-500 text-base sm:text-xs"
                 />
               </div>
 
               <div className="flex items-end sm:col-span-1">
                 <button
                   type="submit"
-                  className="min-h-[42px] w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500"
+                  className="min-h-[44px] w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white shadow hover:bg-emerald-500"
                 >
                   + Før timer
                 </button>
