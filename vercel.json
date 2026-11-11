@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm --prefix vvs-kem-pro run build",
+  "outputDirectory": "vvs-kem-pro/dist",
+  "installCommand": "npm --prefix vvs-kem-pro install",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
