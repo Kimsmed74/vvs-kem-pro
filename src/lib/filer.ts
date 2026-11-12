@@ -1,4 +1,11 @@
-import type { ProsjektData } from '../data/prosjekter';
+import type {
+  ProsjektData,
+  KlimaData,
+  UVerdierData,
+  SanitaerUtstyrData,
+  VentilasjonKravData,
+} from '../data/prosjekter';
+import { beregnQs } from '../engine/sanitaer';
 
 export type FilKategori =
   | 'plantegning'
@@ -53,12 +60,11 @@ export interface UttrekkResultat {
   vaMyndighet?: string;
   byggherre?: string;
   miljoambisjon?: string;
-  uVerdier?: {
-    yttervegg?: number;
-    tak?: number;
-    gulv?: number;
-    vinduDor?: number;
-  };
+  klima?: KlimaData;
+  uVerdier?: UVerdierData;
+  klimaskjerm?: UVerdierData;
+  sanitaerUtstyr?: SanitaerUtstyrData;
+  ventilasjon?: VentilasjonKravData;
   transmisjonstapWPerK?: number;
   koter?: {
     gate?: number;
@@ -652,11 +658,465 @@ function gjenkjennBygningstype(tekst: string): string | undefined {
 }
 
 /**
+ * Tolker et tall eller summerer talluttrykk i parenteser:
+ * F.eks. "20 (8 + 6 + 6)" -> 20, "(8 + 6 + 6)" -> 20, "4 (2 + 2 + 0)" -> 4, "18" -> 18.
+ */
+export function parseAntallMedParenteser(verdi: string | undefined): number {
+  if (!verdi) return 0;
+  const ren = String(verdi).trim();
+  if (!ren) return 0;
+  const leadMatch = ren.match(/^(\d+)\s*\(/);
+  if (leadMatch) {
+    const num = parseInt(leadMatch[1], 10);
+    if (!Number.isNaN(num)) return num;
+  }
+  if (ren.includes('+')) {
+    const tall = ren.match(/\d+/g);
+    if (tall && tall.length > 0) {
+      return tall.reduce((acc, t) => acc + parseInt(t, 10), 0);
+    }
+  }
+  const enkelMatch = ren.match(/^(\d+)/);
+  if (enkelMatch) {
+    const num = parseInt(enkelMatch[1], 10);
+    if (!Number.isNaN(num)) return num;
+  }
+  return 0;
+}
+
+/**
+ * Tolker Markdown-tabeller (|...|...|) og returnerer en matrise av tabeller,
+ * der hver tabell består av rader med trimmede cellestrenger.
+ */
+export function parseMarkdownTabeller(tekst: string): string[][][] {
+  const linjer = tekst.split(/\r?\n/);
+  const tabeller: string[][][] = [];
+  let gjeldendeTabell: string[][] = [];
+
+  for (const linje of linjer) {
+    const trimmet = linje.trim();
+    if (trimmet.includes('|')) {
+      if (/^\|?[\s:-]+\|[\s|:-]*$/.test(trimmet)) {
+        continue;
+      }
+      const celler = trimmet
+        .replace(/^\|/, '')
+        .replace(/\|$/, '')
+        .split('|')
+        .map((c) => c.replace(/\*\*|__|`/g, '').trim());
+      if (celler.length > 0 && celler.some((c) => c.length > 0)) {
+        gjeldendeTabell.push(celler);
+      }
+    } else {
+      if (gjeldendeTabell.length > 0) {
+        tabeller.push(gjeldendeTabell);
+        gjeldendeTabell = [];
+      }
+    }
+  }
+
+  if (gjeldendeTabell.length > 0) {
+    tabeller.push(gjeldendeTabell);
+  }
+
+  return tabeller;
+}
+
+export interface MarkdownSeksjon {
+  tittel: string;
+  tekst: string;
+}
+
+export function delOppIMarkdownSeksjoner(tekst: string): MarkdownSeksjon[] {
+  const seksjoner: MarkdownSeksjon[] = [];
+  const deler = tekst.split(/(?:^|\n)##\s+/);
+  if (deler.length > 0) {
+    seksjoner.push({ tittel: '__FORORD__', tekst: deler[0] });
+    for (let i = 1; i < deler.length; i++) {
+      const bit = deler[i];
+      const forsteLinjeSlutt = bit.indexOf('\n');
+      if (forsteLinjeSlutt >= 0) {
+        const tittel = bit.slice(0, forsteLinjeSlutt).trim();
+        const innhold = bit.slice(forsteLinjeSlutt + 1);
+        seksjoner.push({ tittel, tekst: innhold });
+      } else {
+        seksjoner.push({ tittel: bit.trim(), tekst: '' });
+      }
+    }
+  }
+  return seksjoner;
+}
+
+/**
+ * Skreddersydd parser for strukturerte prosjektdokumenter (f.eks. «Fjellveien Kontor»),
+ * som deler opp dokumentet på ##-kapitler, tolker tabellene kolonne for kolonne (|...|),
+ * og henter ut:
+ * - Generelt & Arealer: BRA, etasjer, bygningstype, adresse, byggherre, matrikkel
+ * - Klimadata: DUT vinter, innetemperatur, DUT sommer
+ * - Klimaskjerm: U-verdier for yttervegg, vindu/dør, tak, gulv, lufttetthet n50 og arealer
+ * - Romoppvarming: Transmisjonstap H_T og effektbehov
+ * - Ventilasjon: Personbelastning, SFP-krav, luftmengde
+ * - Sanitær: Tabell med WC, Servant, Urinal, Dusj, Kjøkkenvask, Oppvaskmaskin,
+ *   med utregning av sum q_n, sum DU og dimensjonerende q_s (Byggforsk 553.102 / beregnQs)
+ */
+export function parseProsjektMarkdown(tekst: string, filNavn = ''): UttrekkResultat {
+  const res: UttrekkResultat = { tekniskeFunn: [], foreslatteFeller: [] };
+  const seksjoner = delOppIMarkdownSeksjoner(tekst);
+
+  // 1. Prosjektnavn (første #-overskrift ELLER eksplisitt felt)
+  const overskriftMatch = tekst.match(/^\s*#\s+([^\n\r#]{3,70})/m);
+  const navnEksplisitt = tekst.match(
+    /(?:^|[;\n\r|])\s*(?:Prosjekt(?:navn)?|Bygg(?:navn)?|Tiltak(?:snavn)?)\s*[:|=–-]\s*([^\n\r|;]{2,70})/i
+  );
+  if (navnEksplisitt) {
+    res.navn = navnEksplisitt[1].trim();
+    res.eksaktNavnFraTekst = true;
+    res.tekniskeFunn!.push(`Prosjektnavn: ${res.navn}`);
+  } else if (overskriftMatch) {
+    const vasket = overskriftMatch[1]
+      .replace(/\*\*|__|`/g, '')
+      .replace(/^(?:prosjekt(?:beskrivelse|navn)?|vvs-beskrivelse|forprosjekt|rapport|notat)\s*[:–-]\s*/i, '')
+      .trim();
+    if (vasket.length >= 3) {
+      res.navn = vasket;
+      res.eksaktNavnFraTekst = true;
+      res.tekniskeFunn!.push(`Prosjektnavn: ${res.navn}`);
+    }
+  } else if (filNavn) {
+    const utenExt = filNavn.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim();
+    if (utenExt.length > 2) res.navn = utenExt;
+  }
+
+  // 2. Metadata: Adresse, kommune, byggherre, bygningstype, matrikkel
+  const adrMatch = tekst.match(/(?:adresse|lokasjon|beliggenhet|sted)\s*[:=–-]\s*([^\n\r|;]{3,70})/i);
+  if (adrMatch) {
+    res.sted = adrMatch[1].trim();
+    res.tekniskeFunn!.push(`Adresse: ${res.sted}`);
+  }
+  const komMatch = tekst.match(/(?:kommune|va-myndighet)\s*[:=–-]\s*([^\n\r|;]{3,50})/i);
+  if (komMatch) {
+    const k = komMatch[1].trim();
+    res.vaMyndighet = k.toLowerCase().includes('kommune') ? k : `${k} kommune – Vann og avløp`;
+    res.tekniskeFunn!.push(`VA-myndighet: ${res.vaMyndighet}`);
+  }
+  const bhMatch = tekst.match(/(?:byggherre|oppdragsgiver|kunde|tiltakshaver)\s*[:=–-]\s*([^\n\r|;]{2,60})/i);
+  if (bhMatch) {
+    res.byggherre = bhMatch[1].trim();
+    res.tekniskeFunn!.push(`Byggherre: ${res.byggherre}`);
+  }
+  const btMatch = tekst.match(/(?:bygningstype|byggtype|type\s+bygg|kategorisering)\s*[:=–-]\s*([^\n\r|;]{3,60})/i);
+  const funnetByggType = btMatch ? gjenkjennBygningstype(btMatch[1]) : gjenkjennBygningstype(tekst);
+  if (funnetByggType) {
+    res.bygningstype = funnetByggType;
+    res.tekniskeFunn!.push(`Bygningstype: ${funnetByggType}`);
+  }
+  const gnrBnrMatch =
+    tekst.match(/(?:gnr\.?|gårdsnr\.?)\s*[:.]?\s*(\d+)\s*(?:[,/\s-]+|(?:og\s+)?)?(?:bnr\.?|bruksnr\.?)\s*[:.]?\s*(\d+)/i) ||
+    tekst.match(/\b(?:matrikkel|gnr\s*\/\s*bnr)\s*[:=-]?\s*(\d+)\s*\/\s*(\d+)\b/i);
+  if (gnrBnrMatch) {
+    res.matrikkel = `Gnr. ${gnrBnrMatch[1]} / Bnr. ${gnrBnrMatch[2]}`;
+    res.tekniskeFunn!.push(`Matrikkel: ${res.matrikkel}`);
+  }
+
+  // 3. Iterer over seksjoner
+  for (const sek of seksjoner) {
+    const tit = sek.tittel.toLowerCase();
+    const innhold = sek.tekst;
+
+    // A. Generelt / Arealer
+    if (tit.includes('generelt') || tit.includes('areal') || tit === '__forord__') {
+      const braFunn = trekkUtBra(innhold);
+      if (braFunn.bra !== undefined && res.bra === undefined) {
+        res.bra = braFunn.bra;
+        res.tekniskeFunn!.push(`BRA: ${braFunn.bra} m²`);
+      }
+      if (braFunn.etasjer && !res.etasjer) {
+        res.etasjer = braFunn.etasjer;
+        res.tekniskeFunn!.push(`Etasjer: ${res.etasjer}`);
+      }
+      const etgMatch = innhold.match(/(\d{1,2})\s*(?:etasjer?|etg\.?)/i);
+      if (etgMatch && !res.etasjer) {
+        res.etasjer = etgMatch[1];
+        res.tekniskeFunn!.push(`Etasjer: ${res.etasjer}`);
+      }
+    }
+
+    // B. Klimadata
+    if (tit.includes('klima') || tit.includes('temperatur')) {
+      const dutVMatch = innhold.match(
+        /(?:DUT(?:\s+vinter|\s+ute)?|dimensjonerende\s+(?:ute)?temperatur(?:\s*\([^)]*\))?|dimensjonerende\s+vintertemperatur|ute\s*\(DUT\))[^:\n\r=-]*[:=–-]\s*(-?\d+(?:[,.]\d+)?)/i
+      );
+      const inneTMatch = innhold.match(
+        /(?:innetemperatur|romtemperatur|dimensjonerende\s+innetemperatur|t_inne)[^:\n\r=-]*[:=–-]\s*(\d+(?:[,.]\d+)?)/i
+      );
+      const dutSMatch = innhold.match(
+        /(?:DUT\s+sommer|sommertemperatur|sommer)[^:\n\r=-]*[:=–-]\s*(\d+(?:[,.]\d+)?)/i
+      );
+
+      const dutV = dutVMatch ? parseNorskTall(dutVMatch[1]) : undefined;
+      const inneT = inneTMatch ? parseNorskTall(inneTMatch[1]) : undefined;
+      const dutS = dutSMatch ? parseNorskTall(dutSMatch[1]) : undefined;
+
+      if (dutV !== undefined || inneT !== undefined || dutS !== undefined) {
+        res.klima = {
+          dutVinter: dutV,
+          innetemperatur: inneT,
+          dutSommer: dutS,
+        };
+        if (dutV !== undefined) res.tekniskeFunn!.push(`Klimadata DUT vinter: ${dutV} °C`);
+        if (inneT !== undefined) res.tekniskeFunn!.push(`Innetemperatur: ${inneT} °C`);
+        if (dutS !== undefined) res.tekniskeFunn!.push(`DUT sommer: ${dutS} °C`);
+      }
+    }
+
+    // C. Klimaskjerm / Bygningsfysikk / U-verdier
+    if (tit.includes('klimaskjerm') || tit.includes('u-verdi') || tit.includes('bygningsfysikk')) {
+      const tabeller = parseMarkdownTabeller(innhold);
+      const uVerdier: UVerdierData = {};
+      const arealer: { yttervegg?: number; tak?: number; gulv?: number; vinduDor?: number } = {};
+
+      for (const tab of tabeller) {
+        if (tab.length < 2) continue;
+        const h = tab[0].map((c) => c.toLowerCase());
+        const uIdxHeader = h.findIndex((c) => /u-verdi|\bu\b|w\/\(?m/.test(c));
+        const aIdxHeader = h.findIndex((c) => (/areal/.test(c) || (/m²|m2/.test(c) && !/w\//.test(c))) && !/u-verdi|\bu\b/.test(c));
+
+        const dataRader = tab.slice(1);
+        for (const rad of dataRader) {
+          if (rad.length < 2) continue;
+          const radTekst = rad.join(' ').toLowerCase();
+          const forste = rad[0].toLowerCase();
+
+          let uKand: number | undefined;
+          let aKand: number | undefined;
+
+          if (uIdxHeader >= 0 && rad[uIdxHeader] !== undefined) {
+            uKand = parseNorskTall(rad[uIdxHeader]);
+          }
+          if (aIdxHeader >= 0 && rad[aIdxHeader] !== undefined) {
+            aKand = parseNorskTall(rad[aIdxHeader]);
+          }
+
+          if (uKand === undefined || aKand === undefined) {
+            const tallIRad = rad.slice(1).map((c) => parseNorskTall(c)).filter((n): n is number => n !== undefined);
+            if (uKand === undefined) {
+              uKand = tallIRad.find((n) => n > 0 && n < 3.0);
+            }
+            if (aKand === undefined) {
+              aKand = tallIRad.find((n) => n >= 10);
+            }
+          }
+
+          if (/yttervegg|fasade/.test(forste) || /yttervegg|fasade/.test(radTekst)) {
+            if (uKand !== undefined) uVerdier.yttervegg = uKand;
+            if (aKand !== undefined) arealer.yttervegg = aKand;
+          } else if (/vindu|dør|glass/.test(forste) || /vindu|dør|glass/.test(radTekst)) {
+            if (uKand !== undefined) uVerdier.vinduDor = uKand;
+            if (aKand !== undefined) arealer.vinduDor = aKand;
+          } else if (/tak|yttertak/.test(forste) || /tak|yttertak/.test(radTekst)) {
+            if (uKand !== undefined) uVerdier.tak = uKand;
+            if (aKand !== undefined) arealer.tak = aKand;
+          } else if (/gulv|såle|dekke/.test(forste) || /gulv|såle|dekke/.test(radTekst)) {
+            if (uKand !== undefined) uVerdier.gulv = uKand;
+            if (aKand !== undefined) arealer.gulv = aKand;
+          }
+        }
+      }
+
+      const n50Match = innhold.match(
+        /(?:lufttetthet|lekkasjetall|tetthet|n50|n_50)\s*(?:\(n50\))?[^:\n\r=-]*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:1\/h|ombyttinger?|ombytting)?/i
+      );
+      if (n50Match) {
+        const n50 = parseNorskTall(n50Match[1]);
+        if (n50 !== undefined) {
+          uVerdier.n50 = n50;
+          res.tekniskeFunn!.push(`Luftlekkasjetall n50: ${n50} 1/h`);
+        }
+      }
+
+      if (Object.keys(arealer).length > 0) {
+        uVerdier.arealer = arealer;
+      }
+      if (Object.keys(uVerdier).length > 0) {
+        res.uVerdier = uVerdier;
+        res.klimaskjerm = { ...uVerdier };
+        if (uVerdier.yttervegg !== undefined) res.tekniskeFunn!.push(`U-verdi yttervegg: ${uVerdier.yttervegg} W/(m²K)`);
+        if (uVerdier.tak !== undefined) res.tekniskeFunn!.push(`U-verdi tak: ${uVerdier.tak} W/(m²K)`);
+        if (uVerdier.gulv !== undefined) res.tekniskeFunn!.push(`U-verdi gulv: ${uVerdier.gulv} W/(m²K)`);
+        if (uVerdier.vinduDor !== undefined) res.tekniskeFunn!.push(`U-verdi vindu/dør: ${uVerdier.vinduDor} W/(m²K)`);
+      }
+    }
+
+    // D. Romoppvarming & Transmisjonstap
+    if (tit.includes('romoppvarming') || tit.includes('varme') || tit.includes('effekt')) {
+      const transMatch = innhold.match(
+        /(?:transmisjonstap\s+h_t|\bh_t\b|transmisjonstap|spesifikt\s+transmisjonstap)[^:\n\r=-]*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:w\s*\/\s*k)?/i
+      );
+      if (transMatch) {
+        const ht = parseNorskTall(transMatch[1]);
+        if (ht !== undefined) {
+          res.transmisjonstapWPerK = ht;
+          res.tekniskeFunn!.push(`Transmisjonstap H_T: ${ht} W/K`);
+        }
+      }
+    }
+
+    // E. Ventilasjon
+    if (tit.includes('ventilasjon') || tit.includes('luft')) {
+      const persMatch = innhold.match(
+        /(?:personbelastning|antall\s+personer|personer|arbeidsplasser)[^:\n\r=-]*[:=–-]?\s*(\d+)/i
+      );
+      const sfpMatch = innhold.match(
+        /(?:sfp(?:-krav)?|spesifikk\s+vifteeffekt)[^:\n\r=-]*[:=–-]?\s*(\d+(?:[,.]\d+)?)/i
+      );
+      const luftMatch = innhold.match(
+        /(?:luftmengde|luftmengde\s+totalt?)[^:\n\r=-]*[:=–-]?\s*(\d[\d\s]*)\s*(?:m³\s*\/\s*h|m3\/h)/i
+      );
+
+      const personbelastning = persMatch ? parseNorskTall(persMatch[1]) : undefined;
+      const sfpKrav = sfpMatch ? parseNorskTall(sfpMatch[1]) : undefined;
+      const luftmengdeM3h = luftMatch ? parseNorskTall(luftMatch[1]) : undefined;
+
+      if (personbelastning !== undefined || sfpKrav !== undefined || luftmengdeM3h !== undefined) {
+        res.ventilasjon = {
+          personbelastning,
+          sfpKrav,
+          luftmengdeM3h,
+        };
+        if (personbelastning !== undefined) res.tekniskeFunn!.push(`Ventilasjon personbelastning: ${personbelastning} personer`);
+        if (sfpKrav !== undefined) res.tekniskeFunn!.push(`SFP-krav: ${sfpKrav} kW/(m³/s)`);
+        if (luftmengdeM3h !== undefined) res.tekniskeFunn!.push(`Prosjektert luftmengde: ${luftmengdeM3h} m³/h`);
+      }
+    }
+
+    // F. Sanitærutstyr
+    if (tit.includes('sanitær') || tit.includes('forbruksvann') || tit.includes('armatur')) {
+      const tabeller = parseMarkdownTabeller(innhold);
+      const poster: SanitaerUtstyrData = {
+        wc: { antall: 0, qnLPrS: 0.1, du: 2.0 },
+        servant: { antall: 0, qnLPrS: 0.1, du: 0.5 },
+        urinal: { antall: 0, qnLPrS: 0.1, du: 0.5 },
+        dusj: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+        kjokkenvask: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+        oppvaskmaskin: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+        sumQn: 0,
+        sumDu: 0,
+        qsLPrS: 0,
+      };
+
+      for (const tab of tabeller) {
+        if (tab.length < 2) continue;
+        const h = tab[0].map((c) => c.toLowerCase());
+        const antallIdx = h.findIndex((c) => /antall|stk|mengde/.test(c));
+        const qnIdx = h.findIndex((c) => /q_?n|normflom|l\/s/.test(c));
+        const duIdx = h.findIndex((c) => /\bdu\b|design\s*unit|vekt/.test(c));
+
+        const dataRader = tab.slice(1);
+        for (const rad of dataRader) {
+          if (rad.length < 2) continue;
+          const forste = rad[0].toLowerCase();
+          const ant = parseAntallMedParenteser(antallIdx >= 0 && rad[antallIdx] !== undefined ? rad[antallIdx] : rad[1]);
+          const qn = qnIdx >= 0 && rad[qnIdx] !== undefined ? parseNorskTall(rad[qnIdx]) : rad[2] ? parseNorskTall(rad[2]) : undefined;
+          const du = duIdx >= 0 && rad[duIdx] !== undefined ? parseNorskTall(rad[duIdx]) : rad[3] ? parseNorskTall(rad[3]) : undefined;
+
+          if (/wc|toalett|klosett/.test(forste)) {
+            poster.wc.antall = ant;
+            if (qn !== undefined && qn > 0) poster.wc.qnLPrS = qn;
+            if (du !== undefined && du > 0) poster.wc.du = du;
+          } else if (/servant|håndvask/.test(forste)) {
+            poster.servant.antall = ant;
+            if (qn !== undefined && qn > 0) poster.servant.qnLPrS = qn;
+            if (du !== undefined && du > 0) poster.servant.du = du;
+          } else if (/urinal/.test(forste)) {
+            poster.urinal.antall = ant;
+            if (qn !== undefined && qn > 0) poster.urinal.qnLPrS = qn;
+            if (du !== undefined && du > 0) poster.urinal.du = du;
+          } else if (/dusj/.test(forste)) {
+            poster.dusj.antall = ant;
+            if (qn !== undefined && qn > 0) poster.dusj.qnLPrS = qn;
+            if (du !== undefined && du > 0) poster.dusj.du = du;
+          } else if (/kjøkken|kjokken|vaskekum/.test(forste)) {
+            poster.kjokkenvask.antall = ant;
+            if (qn !== undefined && qn > 0) poster.kjokkenvask.qnLPrS = qn;
+            if (du !== undefined && du > 0) poster.kjokkenvask.du = du;
+          } else if (/oppvask/.test(forste)) {
+            poster.oppvaskmaskin.antall = ant;
+            if (qn !== undefined && qn > 0) poster.oppvaskmaskin.qnLPrS = qn;
+            if (du !== undefined && du > 0) poster.oppvaskmaskin.du = du;
+          }
+        }
+      }
+
+      poster.sumQn = Math.round((
+        poster.wc.antall * poster.wc.qnLPrS +
+        poster.servant.antall * poster.servant.qnLPrS +
+        poster.urinal.antall * poster.urinal.qnLPrS +
+        poster.dusj.antall * poster.dusj.qnLPrS +
+        poster.kjokkenvask.antall * poster.kjokkenvask.qnLPrS +
+        poster.oppvaskmaskin.antall * poster.oppvaskmaskin.qnLPrS
+      ) * 100) / 100;
+
+      poster.sumDu = Math.round((
+        poster.wc.antall * poster.wc.du +
+        poster.servant.antall * poster.servant.du +
+        poster.urinal.antall * poster.urinal.du +
+        poster.dusj.antall * poster.dusj.du +
+        poster.kjokkenvask.antall * poster.kjokkenvask.du +
+        poster.oppvaskmaskin.antall * poster.oppvaskmaskin.du
+      ) * 10) / 10;
+
+      const qnList = [
+        poster.wc.antall > 0 ? poster.wc.qnLPrS : 0,
+        poster.servant.antall > 0 ? poster.servant.qnLPrS : 0,
+        poster.urinal.antall > 0 ? poster.urinal.qnLPrS : 0,
+        poster.dusj.antall > 0 ? poster.dusj.qnLPrS : 0,
+        poster.kjokkenvask.antall > 0 ? poster.kjokkenvask.qnLPrS : 0,
+        poster.oppvaskmaskin.antall > 0 ? poster.oppvaskmaskin.qnLPrS : 0,
+      ];
+      const maksQn = Math.max(...qnList, 0);
+      poster.qsLPrS = Math.round(beregnQs(poster.sumQn, maksQn) * 100) / 100;
+
+      res.sanitaerUtstyr = poster;
+      res.tekniskeFunn!.push(`Sanitærutstyr: Σ q_n = ${poster.sumQn} l/s, Σ DU = ${poster.sumDu}, q_s = ${poster.qsLPrS} l/s`);
+
+      if (poster.dusj.antall > 0 && !res.belastning) {
+        res.belastning = { dusjer: poster.dusj.antall, dusjMinutter: 20, dusjLs: 0.2 };
+      }
+    }
+  }
+
+  // Fallback for BRA hvis ikke funnet under Arealer-seksjonen
+  if (res.bra === undefined) {
+    const braGen = trekkUtBra(tekst);
+    if (braGen.bra !== undefined) {
+      res.bra = braGen.bra;
+      res.tekniskeFunn!.push(`BRA: ${braGen.bra} m²`);
+    }
+    if (braGen.etasjer && !res.etasjer) {
+      res.etasjer = braGen.etasjer;
+      res.tekniskeFunn!.push(`Etasjer: ${res.etasjer}`);
+    }
+  }
+
+  res.oppsummering = lagKortFunnTekst(res);
+  return res;
+}
+
+/**
  * Deterministisk lokal regex-/NLP-analyse som trekker ut prosjektnavn, adresse, Gnr/Bnr,
  * m², koter (ITK/ITR, IBR, terrengkote, laveste sluk), stikkledning, vanntrykk og dusjer
  * fra både chattemeldinger, VA-kart og dokumenter (Markdown, TXT, PDF, Word, Excel) – selv uten API-nøkkel.
  */
 export function analyserTekstLokalt(tekst: string, filNavn = ''): UttrekkResultat {
+  let mdResultat: UttrekkResultat | undefined;
+  if (tekst.includes('##') || /\|[\s:-]+\|/.test(tekst) || (tekst.includes('|') && tekst.includes('\n'))) {
+    try {
+      mdResultat = parseProsjektMarkdown(tekst, filNavn);
+    } catch (err) {
+      console.warn('parseProsjektMarkdown feilet under lokal analyse:', err);
+    }
+  }
+
   const res: UttrekkResultat = { tekniskeFunn: [], foreslatteFeller: [] };
   const renTekst = normaliserDokumentTekst(tekst);
   const kilde = `${filNavn}\n${renTekst}`;
@@ -958,15 +1418,16 @@ export function analyserTekstLokalt(tekst: string, filNavn = ''): UttrekkResulta
     res.tekniskeFunn!.push(`Teknisk rom: ${tekRom} m²`);
   }
 
-  if (res.tekniskeFunn!.length > 0) {
-    res.oppsummering = lagKortFunnTekst(res);
+  const sluttResultat = mdResultat ? flettUttrekkResultater(res, mdResultat) : res;
+  if (sluttResultat.tekniskeFunn!.length > 0) {
+    sluttResultat.oppsummering = lagKortFunnTekst(sluttResultat);
   } else if (tekst.trim().length > 0) {
-    res.oppsummering = `Lest inn tekst${filNavn ? ` fra «${filNavn}»` : ''} (${tekst.length} tegn). Klar for AI-analyse.`;
+    sluttResultat.oppsummering = `Lest inn tekst${filNavn ? ` fra «${filNavn}»` : ''} (${tekst.length} tegn). Klar for AI-analyse.`;
   } else {
-    res.oppsummering = `Fil «${filNavn || 'vedlegg'}» lastet opp og klar for Gemini Vision bilde-/PDF-analyse.`;
+    sluttResultat.oppsummering = `Fil «${filNavn || 'vedlegg'}» lastet opp og klar for Gemini Vision bilde-/PDF-analyse.`;
   }
 
-  return res;
+  return sluttResultat;
 }
 
 /**
@@ -978,11 +1439,16 @@ export function lagKortFunnTekst(u: UttrekkResultat): string {
   if (u.sted) deler.push(`adresse: ${u.sted}`);
   if (u.bra !== undefined) deler.push(`BRA: ${u.bra} m²`);
   if (u.etasjer) deler.push(`etasjer: ${u.etasjer}`);
+  if (u.klima?.dutVinter !== undefined) deler.push(`DUT: ${u.klima.dutVinter} °C`);
+  if (u.klima?.innetemperatur !== undefined) deler.push(`innetemp: ${u.klima.innetemperatur} °C`);
   if (u.uVerdier?.yttervegg !== undefined) deler.push(`U-yttervegg: ${u.uVerdier.yttervegg}`);
   if (u.uVerdier?.tak !== undefined) deler.push(`U-tak: ${u.uVerdier.tak}`);
   if (u.uVerdier?.gulv !== undefined) deler.push(`U-gulv: ${u.uVerdier.gulv}`);
   if (u.uVerdier?.vinduDor !== undefined) deler.push(`U-vindu: ${u.uVerdier.vinduDor}`);
+  if (u.uVerdier?.n50 !== undefined) deler.push(`n50: ${u.uVerdier.n50} 1/h`);
   if (u.transmisjonstapWPerK !== undefined) deler.push(`transmisjonstap: ${u.transmisjonstapWPerK} W/K`);
+  if (u.sanitaerUtstyr?.qsLPrS !== undefined) deler.push(`sanitær q_s: ${u.sanitaerUtstyr.qsLPrS.toFixed(2)} l/s`);
+  if (u.ventilasjon?.personbelastning !== undefined) deler.push(`ventilasjon: ${u.ventilasjon.personbelastning} pers`);
   if (u.eksaktNavnFraTekst && u.navn && u.navn !== u.sted) {
     deler.push(`prosjektnavn: ${u.navn}`);
   }
@@ -1020,8 +1486,13 @@ export function flettUttrekkResultater(
   const kombinert: UttrekkResultat = {
     ...lokal,
     ...ai,
-    navn: ai.navn || lokal.navn,
-    eksaktNavnFraTekst: Boolean(ai.navn || lokal.eksaktNavnFraTekst),
+    navn:
+      ai.eksaktNavnFraTekst && ai.navn
+        ? ai.navn
+        : lokal.eksaktNavnFraTekst && lokal.navn
+        ? lokal.navn
+        : ai.navn || lokal.navn,
+    eksaktNavnFraTekst: Boolean(ai.eksaktNavnFraTekst || lokal.eksaktNavnFraTekst),
     bygningstype: ai.bygningstype || lokal.bygningstype,
     bra: ai.bra ?? lokal.bra,
     etasjer: ai.etasjer || lokal.etasjer,
@@ -1031,6 +1502,14 @@ export function flettUttrekkResultater(
     byggherre: ai.byggherre || lokal.byggherre,
     miljoambisjon: ai.miljoambisjon || lokal.miljoambisjon,
     tekniskRomM2: ai.tekniskRomM2 ?? lokal.tekniskRomM2,
+    klima:
+      ai.klima || lokal.klima
+        ? {
+            dutVinter: ai.klima?.dutVinter ?? lokal.klima?.dutVinter,
+            innetemperatur: ai.klima?.innetemperatur ?? lokal.klima?.innetemperatur,
+            dutSommer: ai.klima?.dutSommer ?? lokal.klima?.dutSommer,
+          }
+        : undefined,
     uVerdier:
       lokal.uVerdier || ai.uVerdier
         ? {
@@ -1038,6 +1517,26 @@ export function flettUttrekkResultater(
             tak: ai.uVerdier?.tak ?? lokal.uVerdier?.tak,
             gulv: ai.uVerdier?.gulv ?? lokal.uVerdier?.gulv,
             vinduDor: ai.uVerdier?.vinduDor ?? lokal.uVerdier?.vinduDor,
+            n50: ai.uVerdier?.n50 ?? lokal.uVerdier?.n50,
+            arealer:
+              ai.uVerdier?.arealer || lokal.uVerdier?.arealer
+                ? {
+                    yttervegg: ai.uVerdier?.arealer?.yttervegg ?? lokal.uVerdier?.arealer?.yttervegg,
+                    tak: ai.uVerdier?.arealer?.tak ?? lokal.uVerdier?.arealer?.tak,
+                    gulv: ai.uVerdier?.arealer?.gulv ?? lokal.uVerdier?.arealer?.gulv,
+                    vinduDor: ai.uVerdier?.arealer?.vinduDor ?? lokal.uVerdier?.arealer?.vinduDor,
+                  }
+                : undefined,
+          }
+        : undefined,
+    klimaskjerm: undefined,
+    sanitaerUtstyr: ai.sanitaerUtstyr ?? lokal.sanitaerUtstyr,
+    ventilasjon:
+      ai.ventilasjon || lokal.ventilasjon
+        ? {
+            personbelastning: ai.ventilasjon?.personbelastning ?? lokal.ventilasjon?.personbelastning,
+            sfpKrav: ai.ventilasjon?.sfpKrav ?? lokal.ventilasjon?.sfpKrav,
+            luftmengdeM3h: ai.ventilasjon?.luftmengdeM3h ?? lokal.ventilasjon?.luftmengdeM3h,
           }
         : undefined,
     transmisjonstapWPerK: ai.transmisjonstapWPerK ?? lokal.transmisjonstapWPerK,
@@ -1091,6 +1590,7 @@ export function flettUttrekkResultater(
       ...new Set([...(lokal.foreslatteFeller ?? []), ...(ai.foreslatteFeller ?? [])]),
     ],
   };
+  kombinert.klimaskjerm = kombinert.uVerdier;
   kombinert.oppsummering = lagKortFunnTekst(kombinert);
   return kombinert;
 }
@@ -1108,7 +1608,11 @@ export function harUttrekkData(u: UttrekkResultat | null | undefined): boolean {
       u.vaMyndighet ||
       u.byggherre ||
       u.miljoambisjon ||
+      u.klima !== undefined ||
       u.uVerdier !== undefined ||
+      u.klimaskjerm !== undefined ||
+      u.sanitaerUtstyr !== undefined ||
+      u.ventilasjon !== undefined ||
       u.transmisjonstapWPerK !== undefined ||
       u.tekniskRomM2 !== undefined ||
       (u.koter &&
@@ -1141,11 +1645,19 @@ export function beskrivUttrekkEndringer(u: UttrekkResultat): string[] {
   if (u.bra !== undefined) liste.push(`Oppvarmet BRA satt til ${u.bra} m²`);
   if (u.etasjer) liste.push(`Etasjer satt til «${u.etasjer}»`);
   if (u.byggherre) liste.push(`Byggherre satt til «${u.byggherre}»`);
+  if (u.klima?.dutVinter !== undefined) liste.push(`Klimadata DUT vinter satt til ${u.klima.dutVinter} °C`);
+  if (u.klima?.innetemperatur !== undefined) liste.push(`Innetemperatur satt til ${u.klima.innetemperatur} °C`);
   if (u.uVerdier?.yttervegg !== undefined) liste.push(`U-verdi yttervegg satt til ${u.uVerdier.yttervegg} W/(m²K)`);
   if (u.uVerdier?.tak !== undefined) liste.push(`U-verdi tak satt til ${u.uVerdier.tak} W/(m²K)`);
   if (u.uVerdier?.gulv !== undefined) liste.push(`U-verdi gulv på grunn satt til ${u.uVerdier.gulv} W/(m²K)`);
   if (u.uVerdier?.vinduDor !== undefined) liste.push(`U-verdi vinduer/dører satt til ${u.uVerdier.vinduDor} W/(m²K)`);
+  if (u.uVerdier?.n50 !== undefined) liste.push(`Luftlekkasjetall n50 satt til ${u.uVerdier.n50} 1/h`);
   if (u.transmisjonstapWPerK !== undefined) liste.push(`Transmisjonstap satt til ${u.transmisjonstapWPerK} W/K`);
+  if (u.sanitaerUtstyr) {
+    liste.push(`Sanitærutstyr registrert (Σ q_n = ${u.sanitaerUtstyr.sumQn.toFixed(1)} l/s, Σ DU = ${u.sanitaerUtstyr.sumDu.toFixed(1)}, q_s = ${u.sanitaerUtstyr.qsLPrS.toFixed(2)} l/s)`);
+  }
+  if (u.ventilasjon?.personbelastning !== undefined) liste.push(`Ventilasjon personbelastning satt til ${u.ventilasjon.personbelastning} personer`);
+  if (u.ventilasjon?.sfpKrav !== undefined) liste.push(`Ventilasjon SFP-krav satt til ${u.ventilasjon.sfpKrav} kW/(m³/s)`);
   if (u.koter?.gate !== undefined) liste.push(`Terrengkote satt til C +${u.koter.gate} moh`);
   if (u.koter?.itrKum !== undefined) liste.push(`Kote ITK/ITR i kommunal kum satt til C +${u.koter.itrKum} moh`);
   if (u.koter?.ibrKum !== undefined) liste.push(`Kote IBR i kommunal kum satt til C +${u.koter.ibrKum} moh`);
@@ -1223,6 +1735,14 @@ export function flettUttrekkInnIProsjekt(
     vaMyndighet: u.vaMyndighet || base.vaMyndighet,
     byggherre: u.byggherre || base.byggherre,
     miljoambisjon: u.miljoambisjon || base.miljoambisjon,
+    klima:
+      u.klima || base.klima
+        ? {
+            dutVinter: u.klima?.dutVinter ?? base.klima?.dutVinter,
+            innetemperatur: u.klima?.innetemperatur ?? base.klima?.innetemperatur,
+            dutSommer: u.klima?.dutSommer ?? base.klima?.dutSommer,
+          }
+        : base.klima,
     uVerdier:
       u.uVerdier || base.uVerdier
         ? {
@@ -1230,8 +1750,28 @@ export function flettUttrekkInnIProsjekt(
             tak: u.uVerdier?.tak ?? base.uVerdier?.tak,
             gulv: u.uVerdier?.gulv ?? base.uVerdier?.gulv,
             vinduDor: u.uVerdier?.vinduDor ?? base.uVerdier?.vinduDor,
+            n50: u.uVerdier?.n50 ?? base.uVerdier?.n50,
+            arealer:
+              u.uVerdier?.arealer || base.uVerdier?.arealer
+                ? {
+                    yttervegg: u.uVerdier?.arealer?.yttervegg ?? base.uVerdier?.arealer?.yttervegg,
+                    tak: u.uVerdier?.arealer?.tak ?? base.uVerdier?.arealer?.tak,
+                    gulv: u.uVerdier?.arealer?.gulv ?? base.uVerdier?.arealer?.gulv,
+                    vinduDor: u.uVerdier?.arealer?.vinduDor ?? base.uVerdier?.arealer?.vinduDor,
+                  }
+                : undefined,
           }
         : base.uVerdier,
+    klimaskjerm: undefined,
+    sanitaerUtstyr: u.sanitaerUtstyr ?? base.sanitaerUtstyr,
+    ventilasjon:
+      u.ventilasjon || base.ventilasjon
+        ? {
+            personbelastning: u.ventilasjon?.personbelastning ?? base.ventilasjon?.personbelastning,
+            sfpKrav: u.ventilasjon?.sfpKrav ?? base.ventilasjon?.sfpKrav,
+            luftmengdeM3h: u.ventilasjon?.luftmengdeM3h ?? base.ventilasjon?.luftmengdeM3h,
+          }
+        : base.ventilasjon,
     transmisjonstapWPerK: u.transmisjonstapWPerK ?? base.transmisjonstapWPerK ?? null,
     koter: {
       gate: u.koter?.gate ?? base.koter.gate,
@@ -1269,15 +1809,25 @@ export function flettUttrekkInnIProsjekt(
       ? [
           base.notater,
           u.oppsummering,
+          u.klima
+            ? `Klimadata: DUT ${u.klima.dutVinter ?? '-'} °C, Innetemperatur ${u.klima.innetemperatur ?? '-'} °C${u.klima.dutSommer !== undefined ? `, Sommer ${u.klima.dutSommer} °C` : ''}`
+            : '',
           u.uVerdier
-            ? `Bygningsfysikk / U-verdier: yttervegg ${u.uVerdier.yttervegg ?? '-'} W/m²K, tak ${u.uVerdier.tak ?? '-'} W/m²K, gulv ${u.uVerdier.gulv ?? '-'} W/m²K, vindu/dør ${u.uVerdier.vinduDor ?? '-'} W/m²K`
+            ? `Bygningsfysikk / U-verdier: yttervegg ${u.uVerdier.yttervegg ?? '-'} W/m²K, tak ${u.uVerdier.tak ?? '-'} W/m²K, gulv ${u.uVerdier.gulv ?? '-'} W/m²K, vindu/dør ${u.uVerdier.vinduDor ?? '-'} W/m²K${u.uVerdier.n50 !== undefined ? `, n50 ${u.uVerdier.n50} 1/h` : ''}`
             : '',
           u.transmisjonstapWPerK ? `Transmisjonstap Σ(U·A): ${u.transmisjonstapWPerK} W/K` : '',
+          u.sanitaerUtstyr
+            ? `Sanitærutstyr: WC ${u.sanitaerUtstyr.wc.antall}, Servant ${u.sanitaerUtstyr.servant.antall}, Urinal ${u.sanitaerUtstyr.urinal.antall}, Dusj ${u.sanitaerUtstyr.dusj.antall}, Kjøkken ${u.sanitaerUtstyr.kjokkenvask.antall}, Oppvask ${u.sanitaerUtstyr.oppvaskmaskin.antall}. Sum q_n = ${u.sanitaerUtstyr.sumQn} l/s, Sum DU = ${u.sanitaerUtstyr.sumDu}, q_s = ${u.sanitaerUtstyr.qsLPrS} l/s`
+            : '',
+          u.ventilasjon
+            ? `Ventilasjon: Personbelastning ${u.ventilasjon.personbelastning ?? '-'} personer, SFP-krav ${u.ventilasjon.sfpKrav ?? '-'} kW/(m³/s)${u.ventilasjon.luftmengdeM3h ? `, Luftmengde ${u.ventilasjon.luftmengdeM3h} m³/h` : ''}`
+            : '',
         ]
           .filter(Boolean)
           .join('\n\n')
       : base.notater,
   };
 
+  oppdatert.klimaskjerm = oppdatert.uVerdier;
   return oppdatert;
 }

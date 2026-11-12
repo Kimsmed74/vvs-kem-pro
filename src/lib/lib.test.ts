@@ -13,6 +13,9 @@ import {
   harUttrekkData,
   lagKortFunnTekst,
   lesOgAnalyserFilLokalt,
+  parseAntallMedParenteser,
+  parseMarkdownTabeller,
+  parseProsjektMarkdown,
   trekkUtBra,
   trekkUtLesbarTekstFraPdfBuffer,
   trekkUtUVerdierOgTransmisjonstap,
@@ -1229,6 +1232,170 @@ describe('Global prosjekt-state, vanntrykk vs. koter og > 6,0 bar kontroll', () 
         const input = ['A', 'B'];
         expect(flyttIArray(input, -1, 1)).toEqual(['A', 'B']);
         expect(flyttIArray(input, 5, -1)).toEqual(['A', 'B']);
+      });
+    });
+
+    describe('parseProsjektMarkdown og strukturert dokumentanalyse', () => {
+      const fjellveienDokument = `# Prosjektbeskrivelse: Fjellveien Kontor
+Adresse: Fjellveien 12, 5014 Bergen
+Kommune: Bergen kommune
+Byggherre: Fjellveien Eiendom AS
+
+## 1. Generelt & Arealer
+- Bygningstype: Kontor / næring
+- BRA: 3 × 800 = 2 400 m²
+- Etasjer: 3 etasjer
+
+## 2. Klimadata
+- Dimensjonerende utetemperatur (DUT vinter): -20 °C
+- Innetemperatur: 21 °C
+- DUT sommer: 26 °C
+
+## 3. Klimaskjerm & U-verdier
+| Bygningsdel | U-verdi [W/(m²·K)] | Areal [m²] |
+|:---|:---|:---|
+| Yttervegg | 0.18 | 1 200 |
+| Vinduer/dører | 0.80 | 360 |
+| Tak | 0.13 | 800 |
+| Gulv på grunn | 0.10 | 800 |
+
+Luftlekkasjetall n50: 0.6 1/h
+
+## 4. Romoppvarming & Effektbehov
+- Romoppvarmingsbehov: 35 W/m²
+- Totalt transmisjonstap H_T: 852 W/K
+
+## 6. Ventilasjon
+- Personbelastning: 150 personer
+- SFP-krav: 1.5 kW/(m³/s)
+- Luftmengde: 12 000 m³/h
+
+## 7. Sanitær
+| Utstyr | Antall | q_n [l/s] | DU |
+|:---|:---|:---|:---|
+| WC | 20 (8 + 6 + 6) | 0.1 | 2.0 |
+| Servant | 18 (6 + 6 + 6) | 0.1 | 0.5 |
+| Urinal | 4 (2 + 2 + 0) | 0.1 | 0.5 |
+| Dusj | 6 (2 + 2 + 2) | 0.2 | 0.8 |
+| Kjøkkenvask | 3 (1 + 1 + 1) | 0.2 | 0.8 |
+| Oppvaskmaskin | 3 (1 + 1 + 1) | 0.2 | 0.8 |
+`;
+
+      it('tolker tall og summering i parenteser med parseAntallMedParenteser', () => {
+        expect(parseAntallMedParenteser('20 (8 + 6 + 6)')).toBe(20);
+        expect(parseAntallMedParenteser('18 (6 + 6 + 6)')).toBe(18);
+        expect(parseAntallMedParenteser('(8 + 6 + 6)')).toBe(20);
+        expect(parseAntallMedParenteser('8 + 6 + 6')).toBe(20);
+        expect(parseAntallMedParenteser('4 (2 + 2 + 0)')).toBe(4);
+        expect(parseAntallMedParenteser('25 stk')).toBe(25);
+        expect(parseAntallMedParenteser('0')).toBe(0);
+        expect(parseAntallMedParenteser('-')).toBe(0);
+        expect(parseAntallMedParenteser(undefined)).toBe(0);
+      });
+
+      it('tolker tabeller kolonne for kolonne med parseMarkdownTabeller', () => {
+        const tabeller = parseMarkdownTabeller(fjellveienDokument);
+        expect(tabeller.length).toBe(2);
+
+        // Klimaskjerm-tabell
+        expect(tabeller[0][0]).toEqual(['Bygningsdel', 'U-verdi [W/(m²·K)]', 'Areal [m²]']);
+        expect(tabeller[0][1]).toEqual(['Yttervegg', '0.18', '1 200']);
+
+        // Sanitær-tabell
+        expect(tabeller[1][0]).toEqual(['Utstyr', 'Antall', 'q_n [l/s]', 'DU']);
+        expect(tabeller[1][1]).toEqual(['WC', '20 (8 + 6 + 6)', '0.1', '2.0']);
+      });
+
+      it('trekker ut alle nøkkeldata fra Fjellveien Kontor via parseProsjektMarkdown', () => {
+        const res = parseProsjektMarkdown(fjellveienDokument);
+
+        // Prosjekt og metadata
+        expect(res.navn).toBe('Fjellveien Kontor');
+        expect(res.sted).toBe('Fjellveien 12, 5014 Bergen');
+        expect(res.byggherre).toBe('Fjellveien Eiendom AS');
+        expect(res.bygningstype).toBe('Kontor / næring');
+
+        // Generelt / Arealer
+        expect(res.bra).toBe(2400);
+        expect(res.etasjer).toBe('3');
+
+        // Klimadata
+        expect(res.klima).toBeDefined();
+        expect(res.klima?.dutVinter).toBe(-20);
+        expect(res.klima?.innetemperatur).toBe(21);
+        expect(res.klima?.dutSommer).toBe(26);
+
+        // Klimaskjerm
+        expect(res.uVerdier).toBeDefined();
+        expect(res.uVerdier?.yttervegg).toBe(0.18);
+        expect(res.uVerdier?.vinduDor).toBe(0.8);
+        expect(res.uVerdier?.tak).toBe(0.13);
+        expect(res.uVerdier?.gulv).toBe(0.1);
+        expect(res.uVerdier?.n50).toBe(0.6);
+        expect(res.uVerdier?.arealer).toEqual({
+          yttervegg: 1200,
+          vinduDor: 360,
+          tak: 800,
+          gulv: 800,
+        });
+        expect(res.transmisjonstapWPerK).toBe(852);
+
+        // Ventilasjon
+        expect(res.ventilasjon).toBeDefined();
+        expect(res.ventilasjon?.personbelastning).toBe(150);
+        expect(res.ventilasjon?.sfpKrav).toBe(1.5);
+        expect(res.ventilasjon?.luftmengdeM3h).toBe(12000);
+
+        // Sanitærutstyr
+        expect(res.sanitaerUtstyr).toBeDefined();
+        expect(res.sanitaerUtstyr?.wc.antall).toBe(20);
+        expect(res.sanitaerUtstyr?.servant.antall).toBe(18);
+        expect(res.sanitaerUtstyr?.urinal.antall).toBe(4);
+        expect(res.sanitaerUtstyr?.dusj.antall).toBe(6);
+        expect(res.sanitaerUtstyr?.kjokkenvask.antall).toBe(3);
+        expect(res.sanitaerUtstyr?.oppvaskmaskin.antall).toBe(3);
+
+        // Sum qn og DU beregning
+        expect(res.sanitaerUtstyr?.sumQn).toBe(6.6);
+        expect(res.sanitaerUtstyr?.sumDu).toBe(60.6);
+        expect(res.sanitaerUtstyr?.qsLPrS).toBe(0.73);
+
+        // Belastning dusjer
+        expect(res.belastning?.dusjer).toBe(6);
+      });
+
+      it('analyserTekstLokalt integrerer Markdown-uttrekket sømløst', () => {
+        const res = analyserTekstLokalt(fjellveienDokument, 'Fjellveien_Kontor.md');
+        expect(res.bra).toBe(2400);
+        expect(res.etasjer).toBe('3');
+        expect(res.klima?.dutVinter).toBe(-20);
+        expect(res.klima?.innetemperatur).toBe(21);
+        expect(res.sanitaerUtstyr?.qsLPrS).toBe(0.73);
+        expect(res.ventilasjon?.personbelastning).toBe(150);
+        expect(res.oppsummering).toContain('BRA: 2400 m²');
+        expect(res.oppsummering).toContain('DUT: -20 °C');
+      });
+
+      it('flettUttrekkInnIProsjekt oppdaterer prosjekt-state med klima, klimaskjerm, sanitær og ventilasjon', () => {
+        const base = tomtProsjekt('fjellveien-test');
+        const uttrekk = parseProsjektMarkdown(fjellveienDokument);
+        const oppdatert = flettUttrekkInnIProsjekt(base, uttrekk);
+
+        expect(oppdatert.navn).toBe('Fjellveien Kontor');
+        expect(oppdatert.bra).toBe(2400);
+        expect(oppdatert.etasjer).toBe('3');
+        expect(oppdatert.klima?.dutVinter).toBe(-20);
+        expect(oppdatert.klima?.innetemperatur).toBe(21);
+        expect(oppdatert.uVerdier?.yttervegg).toBe(0.18);
+        expect(oppdatert.uVerdier?.n50).toBe(0.6);
+        expect(oppdatert.uVerdier?.arealer?.yttervegg).toBe(1200);
+        expect(oppdatert.sanitaerUtstyr?.sumQn).toBe(6.6);
+        expect(oppdatert.sanitaerUtstyr?.qsLPrS).toBe(0.73);
+        expect(oppdatert.ventilasjon?.personbelastning).toBe(150);
+        expect(oppdatert.ventilasjon?.sfpKrav).toBe(1.5);
+        expect(oppdatert.notater).toContain('Klimadata: DUT -20 °C, Innetemperatur 21 °C');
+        expect(oppdatert.notater).toContain('Sanitærutstyr: WC 20');
+        expect(oppdatert.notater).toContain('q_s = 0.73 l/s');
       });
     });
   });

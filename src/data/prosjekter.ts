@@ -30,6 +30,15 @@ export interface FlateInput {
   phi: number | null;
 }
 
+export interface KlimaData {
+  /** Dimensjonerende utetemperatur DUT vinter [°C] */
+  dutVinter?: number;
+  /** Prosjektert innetemperatur [°C] */
+  innetemperatur?: number;
+  /** Dimensjonerende utetemperatur DUT sommer [°C] */
+  dutSommer?: number;
+}
+
 export interface UVerdierData {
   /** U-verdi yttervegg [W/(m²·K)] */
   yttervegg?: number;
@@ -39,6 +48,43 @@ export interface UVerdierData {
   gulv?: number;
   /** U-verdi vinduer og dører [W/(m²·K)] */
   vinduDor?: number;
+  /** Luftlekkasjetall ved 50 Pa trykkforskjell n50 [1/h] */
+  n50?: number;
+  /** Arealer for bygningsdeler [m²] */
+  arealer?: {
+    yttervegg?: number;
+    tak?: number;
+    gulv?: number;
+    vinduDor?: number;
+  };
+}
+
+export interface SanitaerUtstyrPost {
+  antall: number;
+  qnLPrS: number;
+  du: number;
+}
+
+export interface SanitaerUtstyrData {
+  wc: SanitaerUtstyrPost;
+  servant: SanitaerUtstyrPost;
+  urinal: SanitaerUtstyrPost;
+  dusj: SanitaerUtstyrPost;
+  kjokkenvask: SanitaerUtstyrPost;
+  oppvaskmaskin: SanitaerUtstyrPost;
+  andre?: Record<string, SanitaerUtstyrPost>;
+  sumQn: number;
+  sumDu: number;
+  qsLPrS: number;
+}
+
+export interface VentilasjonKravData {
+  /** Personbelastning (antall personer) */
+  personbelastning?: number;
+  /** Spesifikk vifteeffekt SFP-krav [kW/(m³/s)] */
+  sfpKrav?: number;
+  /** Prosjektert luftmengde [m³/h eller l/(s·m²)] */
+  luftmengdeM3h?: number;
 }
 
 export interface ProsjektData {
@@ -56,8 +102,16 @@ export interface ProsjektData {
   vaMyndighet: string;
   byggherre: string;
   miljoambisjon: string;
+  /** Klimadata (DUT vinter, innetemperatur) */
+  klima?: KlimaData;
   /** U-verdier for bygningsdeler [W/(m²·K)] */
   uVerdier?: UVerdierData;
+  /** Alias for uVerdier / bygningsfysikk */
+  klimaskjerm?: UVerdierData;
+  /** Sanitærutstyrsposter, sum q_n og sum DU */
+  sanitaerUtstyr?: SanitaerUtstyrData;
+  /** Ventilasjonskrav (personbelastning, SFP) */
+  ventilasjon?: VentilasjonKravData;
   /** Totalt eller spesifikt transmisjonstap H_T [W/K] */
   transmisjonstapWPerK?: number | null;
   koter: {
@@ -119,7 +173,11 @@ export function tomtProsjekt(id: string): ProsjektData {
     vaMyndighet: '',
     byggherre: '',
     miljoambisjon: '',
+    klima: undefined,
     uVerdier: undefined,
+    klimaskjerm: undefined,
+    sanitaerUtstyr: undefined,
+    ventilasjon: undefined,
     transmisjonstapWPerK: null,
     koter: { gate: null, ibrKum: null, itrKum: null, vannledning: null, stikkLengde: null, fallNevner: 60, gulv: [] },
     vanntrykk: { statiskBar: null, dynamiskBar: null, uttakLmin: null, antatt: false },

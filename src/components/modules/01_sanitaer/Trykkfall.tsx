@@ -288,6 +288,55 @@ export default function Trykkfall({
         </Kort>
       </div>
 
+      {prosjektData?.sanitaerUtstyr && (
+        <div className="rounded-xl border border-sky-600/40 bg-sky-950/30 p-4 text-xs text-sky-200">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sky-800/40 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-base">📋</span>
+              <div>
+                <span className="font-bold text-slate-100">Registrert sanitærutstyr fra prosjektdokument</span>
+                <span className="ml-2 text-[11px] text-sky-300">(Byggforsk 553.102 / NS-EN 806)</span>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 font-mono text-[11px] text-sky-200">
+              <span>Σ q_n = <strong className="text-slate-100">{prosjektData.sanitaerUtstyr.sumQn.toFixed(2)} l/s</strong></span>
+              <span>•</span>
+              <span>Σ DU = <strong className="text-slate-100">{prosjektData.sanitaerUtstyr.sumDu.toFixed(1)}</strong></span>
+              <span>•</span>
+              <span className="rounded bg-sky-900/80 px-2 py-0.5 font-bold text-emerald-300">
+                Dimensjonerende q_s = {prosjektData.sanitaerUtstyr.qsLPrS.toFixed(2)} l/s
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6 text-[11px]">
+            <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+              <div className="text-slate-400">WC (0.1 l/s)</div>
+              <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.wc.antall} stk</div>
+            </div>
+            <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+              <div className="text-slate-400">Servant (0.1 l/s)</div>
+              <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.servant.antall} stk</div>
+            </div>
+            <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+              <div className="text-slate-400">Urinal (0.1 l/s)</div>
+              <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.urinal.antall} stk</div>
+            </div>
+            <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+              <div className="text-slate-400">Dusj (0.2 l/s)</div>
+              <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.dusj.antall} stk</div>
+            </div>
+            <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+              <div className="text-slate-400">Kjøkkenvask (0.2 l/s)</div>
+              <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.kjokkenvask.antall} stk</div>
+            </div>
+            <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+              <div className="text-slate-400">Oppvaskmaskin (0.2 l/s)</div>
+              <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.oppvaskmaskin.antall} stk</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Kort tittel="Dimensjoneringstabell – fordelingsledning" ikon="🚰">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-400">

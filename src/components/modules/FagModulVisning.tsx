@@ -345,20 +345,24 @@ export default function FagModulVisning({
     },
   ]);
 
-  const [bygningsdeler, setBygningsdeler] = useState<Bygningsdel[]>(() => [
-    { navn: 'Yttervegger', areal: Math.round(bra * 0.55), u: prosjekt.uVerdier?.yttervegg ?? 0.18 },
-    { navn: 'Tak', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier?.tak ?? 0.13 },
-    { navn: 'Gulv på grunn', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier?.gulv ?? 0.1 },
-    { navn: 'Vinduer og dører', areal: Math.round(bra * 0.18), u: prosjekt.uVerdier?.vinduDor ?? 0.8 },
-  ]);
+  const [bygningsdeler, setBygningsdeler] = useState<Bygningsdel[]>(() => {
+    const arealer = prosjekt.uVerdier?.arealer;
+    return [
+      { navn: 'Yttervegger', areal: arealer?.yttervegg ?? Math.round(bra * 0.55), u: prosjekt.uVerdier?.yttervegg ?? 0.18 },
+      { navn: 'Tak', areal: arealer?.tak ?? Math.round(bra * 0.35), u: prosjekt.uVerdier?.tak ?? 0.13 },
+      { navn: 'Gulv på grunn', areal: arealer?.gulv ?? Math.round(bra * 0.35), u: prosjekt.uVerdier?.gulv ?? 0.1 },
+      { navn: 'Vinduer og dører', areal: arealer?.vinduDor ?? Math.round(bra * 0.18), u: prosjekt.uVerdier?.vinduDor ?? 0.8 },
+    ];
+  });
 
   useEffect(() => {
     if (prosjekt.uVerdier) {
+      const arealer = prosjekt.uVerdier.arealer;
       setBygningsdeler([
-        { navn: 'Yttervegger', areal: Math.round(bra * 0.55), u: prosjekt.uVerdier.yttervegg ?? 0.18 },
-        { navn: 'Tak', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier.tak ?? 0.13 },
-        { navn: 'Gulv på grunn', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier.gulv ?? 0.1 },
-        { navn: 'Vinduer og dører', areal: Math.round(bra * 0.18), u: prosjekt.uVerdier.vinduDor ?? 0.8 },
+        { navn: 'Yttervegger', areal: arealer?.yttervegg ?? Math.round(bra * 0.55), u: prosjekt.uVerdier.yttervegg ?? 0.18 },
+        { navn: 'Tak', areal: arealer?.tak ?? Math.round(bra * 0.35), u: prosjekt.uVerdier.tak ?? 0.13 },
+        { navn: 'Gulv på grunn', areal: arealer?.gulv ?? Math.round(bra * 0.35), u: prosjekt.uVerdier.gulv ?? 0.1 },
+        { navn: 'Vinduer og dører', areal: arealer?.vinduDor ?? Math.round(bra * 0.18), u: prosjekt.uVerdier.vinduDor ?? 0.8 },
       ]);
     }
   }, [prosjekt.uVerdier, bra]);
@@ -1686,6 +1690,16 @@ export default function FagModulVisning({
               <Resultat etikett="Kuldebroer" verdi={fmt(transRes.kuldebro, 1)} enhet="W/K" />
               <Resultat etikett="Totalt varmetapstall" verdi={fmt(transRes.total, 1)} enhet="W/K" tone="ok" />
             </div>
+            {prosjekt.klima && (
+              <div className="mt-3 rounded-lg border border-sky-800/40 bg-sky-950/20 p-2.5 text-xs text-sky-200">
+                🌡️ <strong>Klimadata:</strong> DUT {prosjekt.klima.dutVinter ?? '-'} °C · Innetemperatur {prosjekt.klima.innetemperatur ?? 21} °C
+                {prosjekt.klima.dutVinter !== undefined && (
+                  <span className="ml-2 font-mono text-emerald-300">
+                    (ΔT = {((prosjekt.klima.innetemperatur ?? 21) - prosjekt.klima.dutVinter)} K → P_trans = {fmt((transRes.total * ((prosjekt.klima.innetemperatur ?? 21) - prosjekt.klima.dutVinter)) / 1000, 1)} kW)
+                  </span>
+                )}
+              </div>
+            )}
             {lccNs3454.besteAlternativ && (
               <div className="mt-3 rounded-lg border border-emerald-800/60 bg-emerald-950/20 p-2.5 text-xs text-emerald-200">
                 🌱 <strong>NS 3454 Konklusjon:</strong> Beste energikonsept over 25 år er{' '}
