@@ -30,6 +30,17 @@ export interface FlateInput {
   phi: number | null;
 }
 
+export interface UVerdierData {
+  /** U-verdi yttervegg [W/(m²·K)] */
+  yttervegg?: number;
+  /** U-verdi tak [W/(m²·K)] */
+  tak?: number;
+  /** U-verdi gulv på grunn [W/(m²·K)] */
+  gulv?: number;
+  /** U-verdi vinduer og dører [W/(m²·K)] */
+  vinduDor?: number;
+}
+
 export interface ProsjektData {
   id: string;
   navn: string;
@@ -45,6 +56,10 @@ export interface ProsjektData {
   vaMyndighet: string;
   byggherre: string;
   miljoambisjon: string;
+  /** U-verdier for bygningsdeler [W/(m²·K)] */
+  uVerdier?: UVerdierData;
+  /** Totalt eller spesifikt transmisjonstap H_T [W/K] */
+  transmisjonstapWPerK?: number | null;
   koter: {
     /** Terreng / gatelokk [m] */
     gate: number | null;
@@ -104,6 +119,8 @@ export function tomtProsjekt(id: string): ProsjektData {
     vaMyndighet: '',
     byggherre: '',
     miljoambisjon: '',
+    uVerdier: undefined,
+    transmisjonstapWPerK: null,
     koter: { gate: null, ibrKum: null, itrKum: null, vannledning: null, stikkLengde: null, fallNevner: 60, gulv: [] },
     vanntrykk: { statiskBar: null, dynamiskBar: null, uttakLmin: null, antatt: false },
     overvann: { flater: [], intensitet: null, maksPaaslippLs: null },

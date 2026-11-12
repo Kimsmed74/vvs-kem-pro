@@ -13,6 +13,9 @@ import {
   harUttrekkData,
   lagKortFunnTekst,
   lesOgAnalyserFilLokalt,
+  trekkUtBra,
+  trekkUtLesbarTekstFraPdfBuffer,
+  trekkUtUVerdierOgTransmisjonstap,
 } from './filer';
 import { flettUttrekkInnISkjema, tilSkjema } from '../components/ProsjektDialog';
 import {
@@ -720,6 +723,67 @@ describe('Automatisk dokumentlesing & skjemautfylling (Steg 1A & Opprett nytt pr
     const kombi = flettUttrekkResultater(u, { vaMyndighet: 'Stavanger kommune' });
     expect(kombi.sted).toBe('Friheim 49');
     expect(kombi.vaMyndighet).toBe('Stavanger kommune');
+  });
+
+  it('leser inn tekst og tabeller fra opplastede PDF-filer ved hjelp av pdfjs-dist', async () => {
+    const pdfSource =
+      '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>endobj\n4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n5 0 obj<</Length 180>>stream\nBT\n/F1 12 Tf\n50 720 Td\n(PROSJEKT: Friheim 49 Ombygging) Tj\n0 -25 Td\n(BRA | 3 x 800 = 2 400 m2) Tj\n0 -25 Td\n(U-verdi yttervegg: 0,18) Tj\n0 -25 Td\n(Transmisjonstap: 125,5 W/K) Tj\nET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000056 00000 n \n0000000111 00000 n \n0000000212 00000 n \n0000000281 00000 n \ntrailer<</Size 6/Root 1 0 R>>\nstartxref\n510\n%%EOF';
+    const buffer = new TextEncoder().encode(pdfSource).buffer;
+    const tekst = await trekkUtLesbarTekstFraPdfBuffer(buffer);
+
+    expect(tekst).toContain('Friheim 49');
+    expect(tekst).toContain('2 400 m2');
+
+    const uttrekk = analyserTekstLokalt(tekst, 'prosjektrapport.pdf');
+    expect(uttrekk.bra).toBe(2400);
+    expect(uttrekk.etasjer).toBe('3');
+    expect(uttrekk.uVerdier?.yttervegg).toBe(0.18);
+    expect(uttrekk.transmisjonstapWPerK).toBe(125.5);
+  });
+
+  it('håndterer «BRA | 3 × 800 = 2 400 m²», etasjer, U-verdier og transmisjonstap robust fra tekst og tabeller', () => {
+    const rawTxt = `
+PROSJEKT: Næringsbygg Forus Vest
+Adresse: Maskinveien 12
+BRA | 3 × 800 = 2 400 m²
+Bygningskropp:
+- U-verdi yttervegg: 0,18 W/m²K
+- U-verdi tak: 0,13 W/m²K
+- U-verdi gulv på grunn: 0,10 W/m²K
+- U-verdi vinduer/dører: 0,80 W/m²K
+- Transmisjonstap: 125,5 W/K
+`;
+    const direkteBra = trekkUtBra('BRA | 3 × 800 = 2 400 m²');
+    expect(direkteBra.bra).toBe(2400);
+    expect(direkteBra.etasjer).toBe('3');
+
+    const direkteU = trekkUtUVerdierOgTransmisjonstap('U-verdi yttervegg: 0,18 W/m²K\nTransmisjonstap: 125 W/K');
+    expect(direkteU.uVerdier?.yttervegg).toBe(0.18);
+    expect(direkteU.transmisjonstapWPerK).toBe(125);
+
+    const uttrekk = analyserTekstLokalt(rawTxt, 'forus-data.txt');
+    expect(uttrekk.navn).toContain('Næringsbygg Forus Vest');
+    expect(uttrekk.sted).toBe('Maskinveien 12');
+    expect(uttrekk.bra).toBe(2400);
+    expect(uttrekk.etasjer).toBe('3');
+    expect(uttrekk.uVerdier?.yttervegg).toBe(0.18);
+    expect(uttrekk.uVerdier?.tak).toBe(0.13);
+    expect(uttrekk.uVerdier?.gulv).toBe(0.10);
+    expect(uttrekk.uVerdier?.vinduDor).toBe(0.80);
+    expect(uttrekk.transmisjonstapWPerK).toBe(125.5);
+
+    const flettet = flettUttrekkInnIProsjekt(tomtProsjekt('p-oppdatert'), uttrekk);
+    expect(flettet.bra).toBe(2400);
+    expect(flettet.etasjer).toBe('3');
+    expect(flettet.uVerdier?.yttervegg).toBe(0.18);
+    expect(flettet.transmisjonstapWPerK).toBe(125.5);
+    expect(flettet.notater).toContain('Bygningsfysikk');
+
+    // Sjekk at analyse.ts godkjenner BRA automatisk uten advarsel om manglende BRA
+    const analyse = analyserProsjekt(flettet, 0.9);
+    const braSjekk = analyse.datasjekk.find((d) => d.id === 'bra');
+    expect(braSjekk?.ok).toBe(true);
+    expect(analyse.mangler.includes('Oppvarmet BRA er ikke oppgitt.')).toBe(false);
   });
 });
 

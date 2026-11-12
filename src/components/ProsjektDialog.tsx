@@ -246,9 +246,16 @@ export function flettUttrekkInnISkjema(prev: Skjema, u: UttrekkResultat): Skjema
       u.belastning?.dusjer !== undefined ? s(u.belastning.dusjer) : prev.dusjer,
     tekniskRom:
       u.tekniskRomM2 !== undefined ? s(u.tekniskRomM2) : prev.tekniskRom,
-    notater: u.oppsummering
-      ? [prev.notater, u.oppsummering].filter(Boolean).join('\n\n')
-      : prev.notater,
+    notater: [
+      prev.notater,
+      u.oppsummering,
+      u.uVerdier
+        ? `Bygningsfysikk / U-verdier: yttervegg ${u.uVerdier.yttervegg ?? '-'} W/m²K, tak ${u.uVerdier.tak ?? '-'} W/m²K, gulv ${u.uVerdier.gulv ?? '-'} W/m²K, vindu/dør ${u.uVerdier.vinduDor ?? '-'} W/m²K`
+        : '',
+      u.transmisjonstapWPerK ? `Transmisjonstap Σ(U·A): ${u.transmisjonstapWPerK} W/K` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
   };
 }
 

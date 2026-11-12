@@ -133,6 +133,9 @@ SPESIELT VIKTIG FOR VA-KART / SITUASJONSKART: Let nøye etter kotehøyder (NN200
 - Laveste sluk / OK FG / Kjeller -> legges i "koter.gulv"
 - Gnr/Bnr (gårds- og bruksnummer) -> legges i "matrikkel"
 - Gateadresse og kommune -> legges i "sted" og "vaMyndighet"
+- BRA / Oppvarmet areal: Hvis dokumentet oppgir "3 × 800 = 2 400 m²", regn ut totalen og sett "bra": 2400 og "etasjer": "3 etasjer"
+- U-verdier for bygningskropp (yttervegg, tak, gulv, vinduer) -> legges i "uVerdier"
+- Transmisjonsvarmetap Σ(U·A) / H_T [W/K] -> legges i "transmisjonstapWPerK"
 VIKTIG (Lov 1): Ikke gjett på tall som ikke finnes i vedleggene! La felt stå som null/utelatt hvis de ikke fremgår.
 Returner KUN gyldig JSON (ingen markdown-kodeblokker rundt) med følgende struktur:
 {
@@ -144,6 +147,8 @@ Returner KUN gyldig JSON (ingen markdown-kodeblokker rundt) med følgende strukt
   "matrikkel": "Gnr/Bnr",
   "vaMyndighet": "Kommune VA",
   "byggherre": "Byggherre",
+  "uVerdier": { "yttervegg": 0.18, "tak": 0.13, "gulv": 0.10, "vinduDor": 0.80 },
+  "transmisjonstapWPerK": 125.5,
   "koter": {
     "gate": 15.4,
     "ibrKum": 13.6,

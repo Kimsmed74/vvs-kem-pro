@@ -53,6 +53,13 @@ export interface UttrekkResultat {
   vaMyndighet?: string;
   byggherre?: string;
   miljoambisjon?: string;
+  uVerdier?: {
+    yttervegg?: number;
+    tak?: number;
+    gulv?: number;
+    vinduDor?: number;
+  };
+  transmisjonstapWPerK?: number;
   koter?: {
     gate?: number;
     ibrKum?: number;
@@ -298,55 +305,84 @@ function trekkUtPdfTekstOperatorer(innhold: string, ut: string[]): void {
 }
 
 /**
- * Lokal tekstuttrekker fra PDF-filer som også dekomprimerer FlateDecode-strømmer
- * via nettleserens innebygde DecompressionStream slik at vanlig PDF-tekst leses direkte.
+ * Robust lokal tekstuttrekker fra PDF-filer ved hjelp av pdfjs-dist.
+ * Rekonstruerer linjer og tabeller etter vertikal (y) og horisontal (x) plassering,
+ * med automatisk fallback til rå tekst-/operatorparsing ved eventuelle feil.
  */
-async function trekkUtLesbarTekstFraPdfBuffer(buffer: ArrayBuffer): Promise<string> {
-  const bytes = new Uint8Array(buffer);
-  const rå = new TextDecoder('latin1').decode(bytes);
-  const biter: string[] = [];
+export async function trekkUtLesbarTekstFraPdfBuffer(buffer: ArrayBuffer): Promise<string> {
+  try {
+    const [_, pdfjsLib] = await Promise.all([
+      import('pdfjs-dist/legacy/build/pdf.worker.mjs'),
+      import('pdfjs-dist/legacy/build/pdf.mjs'),
+    ]);
 
-  // Dekomprimer FlateDecode-strømmer hvis DecompressionStream støttes
-  if (typeof DecompressionStream !== 'undefined') {
-    const streamRegex = /stream\r?\n/g;
-    let sm: RegExpExecArray | null;
-    let antallStrommer = 0;
-    while ((sm = streamRegex.exec(rå)) !== null && antallStrommer < 45) {
-      const start = sm.index + sm[0].length;
-      const slutt = rå.indexOf('endstream', start);
-      if (slutt <= start) continue;
-      let sluttIdx = slutt;
-      if (rå[sluttIdx - 1] === '\n') sluttIdx--;
-      if (rå[sluttIdx - 1] === '\r') sluttIdx--;
-      const lengde = sluttIdx - start;
-      if (lengde < 4 || lengde > 500000) continue;
+    const u8 = new Uint8Array(buffer);
+    const loadingTask = pdfjsLib.getDocument({
+      data: u8,
+      useSystemFonts: true,
+    });
+    const doc = await loadingTask.promise;
+    const antallSider = Math.min(doc.numPages, 100);
+    const sideTekster: string[] = [];
 
-      antallStrommer++;
-      const kompBytes = bytes.subarray(start, sluttIdx);
-      for (const format of ['deflate', 'deflate-raw'] as const) {
-        try {
-          const ds = new DecompressionStream(format);
-          const writer = ds.writable.getWriter();
-          await writer.write(kompBytes);
-          await writer.close();
-          const utBuf = await new Response(ds.readable).arrayBuffer();
-          const tekstStrom = new TextDecoder('latin1').decode(new Uint8Array(utBuf));
-          if (tekstStrom.includes('BT') || tekstStrom.includes('Tj') || tekstStrom.includes('TJ')) {
-            trekkUtPdfTekstOperatorer(tekstStrom, biter);
+    for (let p = 1; p <= antallSider; p++) {
+      const page = await doc.getPage(p);
+      const tc = await page.getTextContent();
+      const items = (tc.items as Array<{ str?: string; transform?: number[] }>).filter(
+        (it) => typeof it.str === 'string' && it.str.trim().length > 0 && Array.isArray(it.transform)
+      );
+
+      // Sorter ovenfra og ned (y fallende), deretter venstre mot høyre (x stigende)
+      items.sort((a, b) => {
+        const yDiff = b.transform![5] - a.transform![5];
+        if (Math.abs(yDiff) > 3) return yDiff;
+        return a.transform![4] - b.transform![4];
+      });
+
+      const linjer: string[] = [];
+      let gjeldendeLinje: string[] = [];
+      let gjeldendeY: number | null = null;
+
+      for (const it of items) {
+        const y = it.transform![5];
+        if (gjeldendeY === null || Math.abs(gjeldendeY - y) <= 3) {
+          gjeldendeLinje.push(it.str!);
+          if (gjeldendeY === null) gjeldendeY = y;
+        } else {
+          if (gjeldendeLinje.length > 0) {
+            linjer.push(gjeldendeLinje.join(' '));
           }
-          break;
-        } catch {
-          // Prøv neste format eller hopp over strømmen
+          gjeldendeLinje = [it.str!];
+          gjeldendeY = y;
         }
       }
-      if (biter.length >= 800) break;
+      if (gjeldendeLinje.length > 0) {
+        linjer.push(gjeldendeLinje.join(' '));
+      }
+
+      if (linjer.length > 0) {
+        sideTekster.push(linjer.join('\n'));
+      }
     }
+
+    const samlet = sideTekster.join('\n\n').trim();
+    if (samlet.length > 0) {
+      return samlet.slice(0, 50000);
+    }
+  } catch (err) {
+    console.warn('pdfjs-dist feilet under uthenting av PDF, prøver rå-tekst fallback:', err);
   }
 
-  // Suppler alltid med ukomprimerte strenger fra råbufferen
-  trekkUtPdfTekstOperatorer(rå, biter);
-
-  return biter.join('\n').slice(0, 20000);
+  // Robust fallback: Dekoder rå latin1-tekst og henter ukomprimerte strenger hvis pdfjs feiler
+  try {
+    const bytes = new Uint8Array(buffer);
+    const rå = new TextDecoder('latin1').decode(bytes);
+    const biter: string[] = [];
+    trekkUtPdfTekstOperatorer(rå, biter);
+    return biter.join('\n').slice(0, 20000);
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -454,17 +490,20 @@ function normaliserDokumentTekst(råTekst: string): string {
       const trimmet = linje.trim();
       // Hopp over rene Markdown-tabell-skillelinjer (|---|---|)
       if (/^\|?[\s:-]+\|[\s|:-]*$/.test(trimmet)) return '';
-      // Konverter Markdown-tabellrader (| Adresse | Friheim 49 |) til "Adresse: Friheim 49"
-      if (trimmet.startsWith('|') && trimmet.endsWith('|')) {
+      // Konverter Markdown-tabellrader og tabellinjer (| Adresse | Friheim 49 | eller BRA | 3 × 800 = 2 400 m²)
+      if (trimmet.includes('|')) {
         const celler = trimmet
-          .slice(1, -1)
+          .replace(/^\|/, '')
+          .replace(/\|$/, '')
           .split('|')
           .map((c) => c.replace(/\*\*|__|`/g, '').trim())
           .filter(Boolean);
         if (celler.length === 2) {
           return `${celler[0]}: ${celler[1]}`;
         }
-        return celler.join(' · ');
+        if (celler.length > 2) {
+          return celler.join(' · ');
+        }
       }
       // Fjern Markdown fet/kursiv/kode (**Tekst**, __Tekst__, `Tekst`) og liste-punkter (- / * / •)
       return trimmet
@@ -473,6 +512,114 @@ function normaliserDokumentTekst(råTekst: string): string {
     })
     .filter(Boolean)
     .join('\n');
+}
+
+/**
+ * Trekker ut BRA (bruksareal / oppvarmet areal) og eventuelt etasjeantall fra tekst,
+ * inkludert regnestykker som «BRA | 3 × 800 = 2 400 m²», tabellrader, og standardformater.
+ */
+export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
+  // 1. Multiplikasjonsuttrykk: f.eks. "BRA | 3 x 800 = 2 400 m²", "3 etasjer á 800 m² = 2400 m²" eller "3 x 800 m²"
+  const multMatch =
+    tekst.match(
+      /(?:(?:oppvarmet\s+)?(?:BRA|BTA|areal|bruksareal))\s*[:|=|\-–]?\s*(\d{1,2})\s*(?:etg\.?|etasjer?|plan)?\s*(?:[×x*]|á|à)\s*(\d[\d\s]*)\s*(?:m²|m2|kvm)?\s*(?:=\s*(\d[\d\s]*))?(?:\s*(?:m²|m2|kvm))?/i
+    ) ||
+    tekst.match(
+      /\b(\d{1,2})\s*(?:etg\.?|etasjer?|plan)?\s*(?:[×x*]|á|à)\s*(\d[\d\s]*)\s*(?:m²|m2|kvm)?\s*=\s*(\d[\d\s]*)\s*(?:m²|m2|kvm)?/i
+    );
+
+  if (multMatch) {
+    const etg = parseNorskTall(multMatch[1]);
+    const prFlate = parseNorskTall(multMatch[2]);
+    const tot = parseNorskTall(multMatch[3]);
+    const b = tot || (etg && prFlate ? etg * prFlate : undefined);
+    if (b && b >= 15 && b <= 500000) {
+      return { bra: b, etasjer: etg ? String(etg) : undefined };
+    }
+  }
+
+  // 2. Eksplisitt BRA med skilletegn (inkludert kolon, likhetstegn og pipe |)
+  const braEksplisittMatch = tekst.match(
+    /(?:oppvarmet\s+BRA|totalt?\s+areal\s+BRA|totalt?\s+BRA|bruksareal(?:\s*\(BRA\))?|oppvarmet\s+(?:bruks)?areal|\bBRA\b|\bBTA\b|bruttoareal|byggareal|areal(?:et)?|bygget\s+er(?:\s+på)?)\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=|\-–])+\s*(\d[\d\s]*)(?:\s*(?:m²|m2|kvm|kvadratmeter))?/i
+  );
+  if (braEksplisittMatch) {
+    const b = parseNorskTall(braEksplisittMatch[1]);
+    if (b && b >= 15 && b <= 500000) {
+      return { bra: b };
+    }
+  }
+
+  // 3. Fallback: Tall med m² og eksplisitt enhetsangivelse
+  const m2Match = tekst.match(
+    /(\d{1,3}(?:[ \t]\d{3})*|\d{2,6})\s*(?:m²|m2|kvm|kvadratmeter)\s*(?:BRA|BTA|oppvarmet|bruksareal)?/i
+  );
+  if (m2Match) {
+    const b = parseNorskTall(m2Match[1]);
+    if (b && b >= 15 && b <= 500000) {
+      return { bra: b };
+    }
+  }
+
+  return {};
+}
+
+/**
+ * Trekker ut U-verdier for bygningskropp (yttervegg, tak, gulv på grunn, vinduer/dører)
+ * samt totalt eller spesifikt transmisjonsvarmetap (W/K) fra tekniske beskrivelser og tabeller.
+ */
+export function trekkUtUVerdierOgTransmisjonstap(tekst: string): {
+  uVerdier?: { yttervegg?: number; tak?: number; gulv?: number; vinduDor?: number };
+  transmisjonstapWPerK?: number;
+} {
+  const uVerdier: { yttervegg?: number; tak?: number; gulv?: number; vinduDor?: number } = {};
+
+  const yv =
+    tekst.match(/(?:u-verdi(?:er)?\s+(?:for\s+)?(?:yttervegg[^\n\r:=-]*|fasade[^\n\r:=-]*)|(?:yttervegg|fasade)[^\n\r:=-]*\(?u(?:-verdi)?\)?|u-yttervegg)\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)/i) ||
+    tekst.match(/(?:^|\n)\s*(?:yttervegg(?:er)?|fasade)\s*[:=|\-–]\s*(0[,.]\d{1,3})\b/i);
+  if (yv) {
+    const v = parseNorskTall(yv[1]);
+    if (v !== undefined && v > 0 && v < 2) uVerdier.yttervegg = v;
+  }
+
+  const tak =
+    tekst.match(/(?:u-verdi(?:er)?\s+(?:for\s+)?(?:tak[^\n\r:=-]*|yttertak[^\n\r:=-]*)|(?:tak|yttertak)[^\n\r:=-]*\(?u(?:-verdi)?\)?|u-tak)\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)/i) ||
+    tekst.match(/(?:^|\n)\s*(?:tak|yttertak)\s*[:=|\-–]\s*(0[,.]\d{1,3})\b/i);
+  if (tak) {
+    const v = parseNorskTall(tak[1]);
+    if (v !== undefined && v > 0 && v < 2) uVerdier.tak = v;
+  }
+
+  const gulv =
+    tekst.match(/(?:u-verdi(?:er)?\s+(?:for\s+)?(?:gulv[^\n\r:=-]*|såle[^\n\r:=-]*|dekke[^\n\r:=-]*)|(?:gulv|såle)[^\n\r:=-]*\(?u(?:-verdi)?\)?|u-gulv)\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)/i) ||
+    tekst.match(/(?:^|\n)\s*(?:gulv(?:\s+på\s+grunn)?|såle)\s*[:=|\-–]\s*(0[,.]\d{1,3})\b/i);
+  if (gulv) {
+    const v = parseNorskTall(gulv[1]);
+    if (v !== undefined && v > 0 && v < 2) uVerdier.gulv = v;
+  }
+
+  const vd =
+    tekst.match(/(?:u-verdi(?:er)?\s+(?:for\s+)?(?:vindu[^\n\r:=-]*|dør[^\n\r:=-]*|glass[^\n\r:=-]*)|(?:vindu|dør)[^\n\r:=-]*\(?u(?:-verdi)?\)?|u-vindu)\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)/i) ||
+    tekst.match(/(?:^|\n)\s*(?:vindu(?:er)?|dør(?:er)?|glass)\s*[:=|\-–]\s*(0[,.]\d{1,3}|1[,.]\d{1,2})\b/i);
+  if (vd) {
+    const v = parseNorskTall(vd[1]);
+    if (v !== undefined && v > 0 && v < 3) uVerdier.vinduDor = v;
+  }
+
+  let transmisjonstapWPerK: number | undefined;
+  const trans = tekst.match(
+    /(?:transmisjons(?:varme)?tap(?:stall)?|spesifikt\s+transmisjonstap|transmisjonstap\s+h_t|\bh_t\b|totalt\s+transmisjonstap|(?:Σ|sum)\s*\(?\s*u\s*·?\s*a\s*\)?)\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)\s*(?:w\s*\/\s*k)?/i
+  );
+  if (trans) {
+    const v = parseNorskTall(trans[1]);
+    if (v !== undefined && v > 0 && v < 50000) {
+      transmisjonstapWPerK = v;
+    }
+  }
+
+  return {
+    uVerdier: Object.keys(uVerdier).length > 0 ? uVerdier : undefined,
+    transmisjonstapWPerK,
+  };
 }
 
 function gjenkjennBygningstype(tekst: string): string | undefined {
@@ -622,30 +769,48 @@ export function analyserTekstLokalt(tekst: string, filNavn = ''): UttrekkResulta
     res.tekniskeFunn!.push(`Byggherre: ${res.byggherre}`);
   }
 
-  // 7. BRA / Areal (m²) – støtter både «BRA: 1200 m²», «BRA: 1 200», «BRA 2 450 m²», «Areal = 1200 kvm» og «1200 m2 BRA»
-  const braEksplisittMatch =
-    renTekst.match(
-      /(?:oppvarmet\s+BRA|totalt?\s+areal\s+BRA|totalt?\s+BRA|bruksareal(?:\s*\(BRA\))?|oppvarmet\s+(?:bruks)?areal|\bBRA\b|\bBTA\b|bruttoareal|byggareal|areal(?:et)?|bygget\s+er(?:\s+på)?)\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=-])*\s*(\d[\d\s]*)(?:\s*(?:m²|m2|kvm|kvadratmeter))?/i
-    ) ||
-    renTekst.match(/\b(\d{2,6})\s*(?:m²|m2|kvm|kvadratmeter)\s*(?:BRA|BTA|oppvarmet|bruksareal)?/i);
-  if (braEksplisittMatch) {
-    const b = parseNorskTall(braEksplisittMatch[1]);
-    if (b && b >= 15 && b <= 500000) {
-      res.bra = b;
-      res.tekniskeFunn!.push(`BRA: ${b} m²`);
-    }
+  // 7. BRA / Areal (m²) – støtter både «BRA | 3 × 800 = 2 400 m²», tabeller, multiplikasjon og standardformer
+  const braFunn = trekkUtBra(renTekst);
+  if (braFunn.bra !== undefined) {
+    res.bra = braFunn.bra;
+    res.tekniskeFunn!.push(`BRA: ${braFunn.bra} m²`);
   }
 
   // 8. Etasjer
   const etasjerMatch =
-    renTekst.match(/(?:antall\s+)?etasjer\s*(?:er|[:=-])\s*([^\n\r|.;]{1,35})/i) ||
-    renTekst.match(/\b(\d{1,2}\s*etasjer(?:\s*\+\s*(?:kjeller|underetasje|U1|loft|sokkel))?)/i);
+    renTekst.match(/(?:antall\s+)?etasjer\s*(?:er|[:=|\-–])\s*([^\n\r|.;]{1,35})/i) ||
+    renTekst.match(/\b(\d{1,2}\s*(?:etasjer?|etg\.?)(?:\s*\+\s*(?:kjeller|underetasje|u1|loft|sokkel))?)/i);
   if (etasjerMatch) {
     res.etasjer = etasjerMatch[1].trim();
     res.tekniskeFunn!.push(`Etasjer: ${res.etasjer}`);
+  } else if (braFunn.etasjer && !res.etasjer) {
+    res.etasjer = braFunn.etasjer;
+    res.tekniskeFunn!.push(`Etasjer: ${res.etasjer}`);
   }
 
-  // 9. Koter (ITK/ITR, IBR, Terreng/Gatelokk, Vannledning, Laveste sluk/Kjeller, 1. etg, Stikkledning og Fall)
+  // 9. U-verdier og transmisjonstap
+  const uFunn = trekkUtUVerdierOgTransmisjonstap(renTekst);
+  if (uFunn.uVerdier) {
+    res.uVerdier = uFunn.uVerdier;
+    if (uFunn.uVerdier.yttervegg !== undefined) {
+      res.tekniskeFunn!.push(`U-verdi yttervegg: ${uFunn.uVerdier.yttervegg} W/(m²K)`);
+    }
+    if (uFunn.uVerdier.tak !== undefined) {
+      res.tekniskeFunn!.push(`U-verdi tak: ${uFunn.uVerdier.tak} W/(m²K)`);
+    }
+    if (uFunn.uVerdier.gulv !== undefined) {
+      res.tekniskeFunn!.push(`U-verdi gulv på grunn: ${uFunn.uVerdier.gulv} W/(m²K)`);
+    }
+    if (uFunn.uVerdier.vinduDor !== undefined) {
+      res.tekniskeFunn!.push(`U-verdi vinduer/dører: ${uFunn.uVerdier.vinduDor} W/(m²K)`);
+    }
+  }
+  if (uFunn.transmisjonstapWPerK !== undefined) {
+    res.transmisjonstapWPerK = uFunn.transmisjonstapWPerK;
+    res.tekniskeFunn!.push(`Transmisjonstap: ${uFunn.transmisjonstapWPerK} W/K`);
+  }
+
+  // 10. Koter (ITK/ITR, IBR, Terreng/Gatelokk, Vannledning, Laveste sluk/Kjeller, 1. etg, Stikkledning og Fall)
   const itrMatch = renTekst.match(
     /(?:kote\s+(?:ITK|ITR)(?:\s*\/\s*(?:ITR|ITK))?|\bITR\b|\bITK\b|innvendig\s+topp\s+(?:rør|kum)|topp\s+(?:rør|kum)|\bOK\s+rør\b)(?:[^0-9\n\r+-]{0,30})?(?:kote\s*)?[+C\s]*(-?\d{1,3}(?:[,.]\d{1,2})?)/i
   );
@@ -812,6 +977,12 @@ export function lagKortFunnTekst(u: UttrekkResultat): string {
   const deler: string[] = [];
   if (u.sted) deler.push(`adresse: ${u.sted}`);
   if (u.bra !== undefined) deler.push(`BRA: ${u.bra} m²`);
+  if (u.etasjer) deler.push(`etasjer: ${u.etasjer}`);
+  if (u.uVerdier?.yttervegg !== undefined) deler.push(`U-yttervegg: ${u.uVerdier.yttervegg}`);
+  if (u.uVerdier?.tak !== undefined) deler.push(`U-tak: ${u.uVerdier.tak}`);
+  if (u.uVerdier?.gulv !== undefined) deler.push(`U-gulv: ${u.uVerdier.gulv}`);
+  if (u.uVerdier?.vinduDor !== undefined) deler.push(`U-vindu: ${u.uVerdier.vinduDor}`);
+  if (u.transmisjonstapWPerK !== undefined) deler.push(`transmisjonstap: ${u.transmisjonstapWPerK} W/K`);
   if (u.eksaktNavnFraTekst && u.navn && u.navn !== u.sted) {
     deler.push(`prosjektnavn: ${u.navn}`);
   }
@@ -860,6 +1031,16 @@ export function flettUttrekkResultater(
     byggherre: ai.byggherre || lokal.byggherre,
     miljoambisjon: ai.miljoambisjon || lokal.miljoambisjon,
     tekniskRomM2: ai.tekniskRomM2 ?? lokal.tekniskRomM2,
+    uVerdier:
+      lokal.uVerdier || ai.uVerdier
+        ? {
+            yttervegg: ai.uVerdier?.yttervegg ?? lokal.uVerdier?.yttervegg,
+            tak: ai.uVerdier?.tak ?? lokal.uVerdier?.tak,
+            gulv: ai.uVerdier?.gulv ?? lokal.uVerdier?.gulv,
+            vinduDor: ai.uVerdier?.vinduDor ?? lokal.uVerdier?.vinduDor,
+          }
+        : undefined,
+    transmisjonstapWPerK: ai.transmisjonstapWPerK ?? lokal.transmisjonstapWPerK,
     koter:
       lokal.koter || ai.koter
         ? {
@@ -927,6 +1108,8 @@ export function harUttrekkData(u: UttrekkResultat | null | undefined): boolean {
       u.vaMyndighet ||
       u.byggherre ||
       u.miljoambisjon ||
+      u.uVerdier !== undefined ||
+      u.transmisjonstapWPerK !== undefined ||
       u.tekniskRomM2 !== undefined ||
       (u.koter &&
         (u.koter.gate !== undefined ||
@@ -958,6 +1141,11 @@ export function beskrivUttrekkEndringer(u: UttrekkResultat): string[] {
   if (u.bra !== undefined) liste.push(`Oppvarmet BRA satt til ${u.bra} m²`);
   if (u.etasjer) liste.push(`Etasjer satt til «${u.etasjer}»`);
   if (u.byggherre) liste.push(`Byggherre satt til «${u.byggherre}»`);
+  if (u.uVerdier?.yttervegg !== undefined) liste.push(`U-verdi yttervegg satt til ${u.uVerdier.yttervegg} W/(m²K)`);
+  if (u.uVerdier?.tak !== undefined) liste.push(`U-verdi tak satt til ${u.uVerdier.tak} W/(m²K)`);
+  if (u.uVerdier?.gulv !== undefined) liste.push(`U-verdi gulv på grunn satt til ${u.uVerdier.gulv} W/(m²K)`);
+  if (u.uVerdier?.vinduDor !== undefined) liste.push(`U-verdi vinduer/dører satt til ${u.uVerdier.vinduDor} W/(m²K)`);
+  if (u.transmisjonstapWPerK !== undefined) liste.push(`Transmisjonstap satt til ${u.transmisjonstapWPerK} W/K`);
   if (u.koter?.gate !== undefined) liste.push(`Terrengkote satt til C +${u.koter.gate} moh`);
   if (u.koter?.itrKum !== undefined) liste.push(`Kote ITK/ITR i kommunal kum satt til C +${u.koter.itrKum} moh`);
   if (u.koter?.ibrKum !== undefined) liste.push(`Kote IBR i kommunal kum satt til C +${u.koter.ibrKum} moh`);
@@ -1035,6 +1223,16 @@ export function flettUttrekkInnIProsjekt(
     vaMyndighet: u.vaMyndighet || base.vaMyndighet,
     byggherre: u.byggherre || base.byggherre,
     miljoambisjon: u.miljoambisjon || base.miljoambisjon,
+    uVerdier:
+      u.uVerdier || base.uVerdier
+        ? {
+            yttervegg: u.uVerdier?.yttervegg ?? base.uVerdier?.yttervegg,
+            tak: u.uVerdier?.tak ?? base.uVerdier?.tak,
+            gulv: u.uVerdier?.gulv ?? base.uVerdier?.gulv,
+            vinduDor: u.uVerdier?.vinduDor ?? base.uVerdier?.vinduDor,
+          }
+        : base.uVerdier,
+    transmisjonstapWPerK: u.transmisjonstapWPerK ?? base.transmisjonstapWPerK ?? null,
     koter: {
       gate: u.koter?.gate ?? base.koter.gate,
       ibrKum: u.koter?.ibrKum ?? base.koter.ibrKum,
@@ -1068,7 +1266,16 @@ export function flettUttrekkInnIProsjekt(
       ...new Set([...base.feller, ...(u.foreslatteFeller ?? [])]),
     ],
     notater: leggTilOppsummeringINotat
-      ? [base.notater, u.oppsummering].filter(Boolean).join('\n\n')
+      ? [
+          base.notater,
+          u.oppsummering,
+          u.uVerdier
+            ? `Bygningsfysikk / U-verdier: yttervegg ${u.uVerdier.yttervegg ?? '-'} W/m²K, tak ${u.uVerdier.tak ?? '-'} W/m²K, gulv ${u.uVerdier.gulv ?? '-'} W/m²K, vindu/dør ${u.uVerdier.vinduDor ?? '-'} W/m²K`
+            : '',
+          u.transmisjonstapWPerK ? `Transmisjonstap Σ(U·A): ${u.transmisjonstapWPerK} W/K` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n')
       : base.notater,
   };
 

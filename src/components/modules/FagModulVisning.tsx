@@ -345,12 +345,23 @@ export default function FagModulVisning({
     },
   ]);
 
-  const [bygningsdeler] = useState<Bygningsdel[]>(() => [
-    { navn: 'Yttervegger', areal: Math.round(bra * 0.55), u: 0.18 },
-    { navn: 'Tak', areal: Math.round(bra * 0.35), u: 0.13 },
-    { navn: 'Gulv på grunn', areal: Math.round(bra * 0.35), u: 0.1 },
-    { navn: 'Vinduer og dører', areal: Math.round(bra * 0.18), u: 0.8 },
+  const [bygningsdeler, setBygningsdeler] = useState<Bygningsdel[]>(() => [
+    { navn: 'Yttervegger', areal: Math.round(bra * 0.55), u: prosjekt.uVerdier?.yttervegg ?? 0.18 },
+    { navn: 'Tak', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier?.tak ?? 0.13 },
+    { navn: 'Gulv på grunn', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier?.gulv ?? 0.1 },
+    { navn: 'Vinduer og dører', areal: Math.round(bra * 0.18), u: prosjekt.uVerdier?.vinduDor ?? 0.8 },
   ]);
+
+  useEffect(() => {
+    if (prosjekt.uVerdier) {
+      setBygningsdeler([
+        { navn: 'Yttervegger', areal: Math.round(bra * 0.55), u: prosjekt.uVerdier.yttervegg ?? 0.18 },
+        { navn: 'Tak', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier.tak ?? 0.13 },
+        { navn: 'Gulv på grunn', areal: Math.round(bra * 0.35), u: prosjekt.uVerdier.gulv ?? 0.1 },
+        { navn: 'Vinduer og dører', areal: Math.round(bra * 0.18), u: prosjekt.uVerdier.vinduDor ?? 0.8 },
+      ]);
+    }
+  }, [prosjekt.uVerdier, bra]);
 
   const lccRes = useMemo(
     () => beregnLccAlternativer(lccAlternativer, strompris, realrente, 25),
