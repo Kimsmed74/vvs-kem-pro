@@ -539,7 +539,48 @@ export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
   const kandidater: number[] = [];
   let funnetEtasjer: string | undefined;
 
-  // 1. Multiplikasjonsuttrykk: f.eks. "BRA | 3 x 800 = 2 400 m²", "3 etasjer á 800 m² = 2400 m²" eller "3 x 800 m²"
+  // 1. Prioritert sjekk for eksakte linjer / tabellrader med arealM2 / areal_m2 / areal / BRA
+  //    (f.eks. "arealM2 | 240", "| arealM2 | 240 |", "arealM2: 240")
+  //    Strengt skille mot gulvvarme (f.eks. "gulvvarmeM2 | 25" skal ALDRI tas som BRA).
+  const linjer = tekst.split(/\r?\n/);
+  for (const linje of linjer) {
+    const trim = linje.trim();
+    if (!trim) continue;
+
+    // Streng eksklusjon av gulvvarme, bad og delarealer
+    const erGulvvarme = /gulv(?:varme)?|bad|rom|del|tak|vegg|leilighet|kontor(?:\s+areal)?/i.test(trim);
+    if (erGulvvarme && !/oppvarmet\s+bra|totalt?\s+areal/i.test(trim)) {
+      continue;
+    }
+
+    // Matcher rader som starter med (valgfri pipe) arealM2 / areal_m2 / areal / BRA / BTA
+    const matchArealRad = trim.match(
+      /^\|?\s*(?:totalt?\s+)?(?:areal(?:[\s_]?(?:m2|m²))?|\bBRA\b|\bBTA\b|oppvarmet\s+(?:BRA|areal)|bruksareal)\s*(?:\([^)]*\))?\s*[:|=|\-–]+\s*([^\n\r|]+)/i
+    );
+    if (matchArealRad) {
+      const bit = matchArealRad[1].trim();
+      // Hvis regnestykke, f.eks. "3 x 800 = 2 400"
+      if (/[×x*]/.test(bit)) {
+        const mult = bit.match(/(\d+)\s*[×x*]\s*(\d+)(?:\s*=\s*(\d[\d\s]*))?/);
+        if (mult) {
+          const tot = mult[3]
+            ? parseNorskTall(mult[3])
+            : (parseNorskTall(mult[1]) || 0) * (parseNorskTall(mult[2]) || 0);
+          if (tot && tot >= 15 && tot <= 500000) {
+            kandidater.push(tot);
+            if (mult[1]) funnetEtasjer = String(parseNorskTall(mult[1]));
+          }
+        }
+      } else {
+        const tall = parseNorskTall(bit);
+        if (tall !== undefined && tall >= 15 && tall <= 500000) {
+          kandidater.push(tall);
+        }
+      }
+    }
+  }
+
+  // 2. Multiplikasjonsuttrykk: f.eks. "BRA | 3 x 800 = 2 400 m²", "3 etasjer á 800 m² = 2400 m²" eller "3 x 800 m²"
   const multMatch =
     tekst.match(
       /(?:(?:oppvarmet\s+)?(?:BRA|BTA|areal|bruksareal))\s*[:|=|\-–]?\s*(\d{1,2})\s*(?:etg\.?|etasjer?|plan)?\s*(?:[×x*]|á|à)\s*(\d[\d\s]*)\s*(?:m²|m2|kvm)?\s*(?:=\s*(\d[\d\s]*))?(?:\s*(?:m²|m2|kvm))?/i
@@ -555,11 +596,11 @@ export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
     const b = tot || (etg && prFlate ? etg * prFlate : undefined);
     if (b && b >= 15 && b <= 500000) {
       kandidater.push(b);
-      if (etg) funnetEtasjer = String(etg);
+      if (etg && !funnetEtasjer) funnetEtasjer = String(etg);
     }
   }
 
-  // 2. Eksplisitt BRA / BTA / oppvarmet areal / bruksareal med skilletegn (inkludert kolon, likhetstegn og pipe |)
+  // 3. Eksplisitt BRA / BTA / oppvarmet areal / bruksareal med skilletegn (inkludert kolon, likhetstegn og pipe |)
   const braMatches = tekst.matchAll(
     /(?:oppvarmet\s+BRA|totalt?\s+areal\s+BRA|totalt?\s+BRA|bruksareal(?:\s*\(BRA\))?|oppvarmet\s+(?:bruks)?areal|\bBRA\b|\bBTA\b|bruttoareal|byggareal|bygget\s+er(?:\s+på)?)\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=|\-–])+\s*(\d[\d\s]*(?:[,.]\d+)?)(?:\s*(?:m²|m2|kvm|kvadratmeter))?/gi
   );
@@ -570,7 +611,7 @@ export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
     }
   }
 
-  // 3. arealM2 / areal_m2 / areal m2 / totalareal (men ikke gulvvarmeM2, badAreal etc.)
+  // 4. arealM2 / areal_m2 / areal m2 / totalareal (men ikke gulvvarmeM2, badAreal etc.)
   const arealM2Matches = tekst.matchAll(
     /(?<![a-zA-Z0-9_])(?<!gulv(?:varme)?|bad|rom|del|tak|vegg|leilighet|kontor|tomt|asfalt|ute)(?:totalt?\s+)?(?:areal(?:[\s_]?(?:m2|m²))?)(?![a-zA-Z0-9_])\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=|\-–])+\s*(\d[\d\s]*(?:[,.]\d+)?)/gi
   );
@@ -581,15 +622,18 @@ export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
     }
   }
 
-  // 4. Fallback: Tall med m² og eksplisitt enhetsangivelse dersom ingen kandidater funnet
+  // 5. Fallback: Tall med m² og eksplisitt enhetsangivelse dersom ingen kandidater funnet, men unngå gulvvarme
   if (kandidater.length === 0) {
-    const m2Match = tekst.match(
-      /(\d{1,3}(?:[ \t]\d{3})*|\d{2,6})\s*(?:m²|m2|kvm|kvadratmeter)\s*(?:BRA|BTA|oppvarmet|bruksareal)?/i
-    );
-    if (m2Match) {
-      const b = parseNorskTall(m2Match[1]);
-      if (b && b >= 15 && b <= 500000) {
-        kandidater.push(b);
+    for (const l of linjer) {
+      if (/gulv(?:varme)?/i.test(l)) continue;
+      const m2Match = l.match(
+        /(\d{1,3}(?:[ \t]\d{3})*|\d{2,6})\s*(?:m²|m2|kvm|kvadratmeter)\s*(?:BRA|BTA|oppvarmet|bruksareal)?/i
+      );
+      if (m2Match) {
+        const b = parseNorskTall(m2Match[1]);
+        if (b && b >= 15 && b <= 500000) {
+          kandidater.push(b);
+        }
       }
     }
   }
@@ -600,7 +644,7 @@ export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
 
   // Velg den største verdien som hovedareal (slik at den ikke forveksles med mindre rom/gulvvarme-arealer)
   const maksBra = Math.max(...kandidater);
-  return { bra: maksBra, etasjer: funnetEtasjer };
+  return { bra: Math.round(maksBra), etasjer: funnetEtasjer };
 }
 
 /**
@@ -783,106 +827,119 @@ export function parseSanitaerUtstyrTabell(
 
   let funnetNoe = false;
 
+  const matchArmaturType = (tekst: string): keyof typeof poster | null => {
+    const t = tekst.trim().toLowerCase();
+    if (!t) return null;
+    if (/\b(?:badekar|kar)\b/i.test(t)) return 'badekar';
+    if (/\b(?:vaskemaskin|tøyvask)\b/i.test(t)) return 'vaskemaskin';
+    if (/\b(?:oppvaskmaskin|oppvask)\b/i.test(t)) return 'oppvaskmaskin';
+    if (/\b(?:kjøkkenvask|kjokkenvask|kjøkken|kjokken|oppvaskkum)\b/i.test(t)) return 'kjokkenvask';
+    if (/\b(?:utslagsvask|utslag|skyllekum)\b/i.test(t)) return 'utslagsvask';
+    if (/\b(?:toalett(?:er)?|wc|klosett(?:er)?)\b/i.test(t)) return 'wc';
+    if (/\b(?:urinal(?:er)?)\b/i.test(t)) return 'urinal';
+    if (/\b(?:dusj(?:er)?|shower)\b/i.test(t)) return 'dusj';
+    if (/\b(?:servant(?:er)?|håndvask(?:er)?)\b/i.test(t)) return 'servant';
+    if (/\bvask\b/i.test(t) && !/kjøkken|kjokken|oppvask|tøyvask|utslag/i.test(t)) return 'servant';
+    return null;
+  };
+
+  const setVerdi = (
+    type: keyof typeof poster,
+    antall: number,
+    qn?: number,
+    du?: number
+  ) => {
+    if (antall <= 0) return;
+    const post = poster[type];
+    if (post && typeof post === 'object' && 'antall' in post) {
+      post.antall = antall;
+      if (qn !== undefined && qn > 0) post.qnLPrS = qn;
+      if (du !== undefined && du > 0) post.du = du;
+      funnetNoe = true;
+    }
+  };
+
+  // 1. Tabell-evaluering kolonne for kolonne og rad for rad
   for (const tab of tabs) {
-    if (tab.length < 2) continue;
+    if (tab.length === 0) continue;
+
+    // Sjekk om rad 0 er en overskriftsrad (Type, Armatur, Antall) eller en direkte datarad (Toalett | 3)
+    const r0Første = tab[0][0] ? tab[0][0].trim() : '';
+    const erR0DataRad = Boolean(matchArmaturType(r0Første)) || /^\d+$/.test(r0Første);
+    const dataRader = erR0DataRad ? tab : tab.slice(1);
+
     const h = tab[0].map((c) => c.toLowerCase());
     const antallIdx = h.findIndex((c) => /antall|stk|mengde|\bant\b/.test(c));
     const qnIdx = h.findIndex((c) => /q_?n|normflom|l\/s/.test(c));
     const duIdx = h.findIndex((c) => /\bdu\b|design\s*unit|vekt/.test(c));
 
-    const dataRader = tab.slice(1);
     for (const rad of dataRader) {
       if (rad.length < 2) continue;
-      const forste = rad[0].toLowerCase();
-      const ant = parseAntallMedParenteser(
-        antallIdx >= 0 && rad[antallIdx] !== undefined ? rad[antallIdx] : rad[1]
-      );
-      const qn =
-        qnIdx >= 0 && rad[qnIdx] !== undefined
-          ? parseNorskTall(rad[qnIdx])
-          : rad[2]
-          ? parseNorskTall(rad[2])
-          : undefined;
-      const du =
-        duIdx >= 0 && rad[duIdx] !== undefined
-          ? parseNorskTall(rad[duIdx])
-          : rad[3]
-          ? parseNorskTall(rad[3])
-          : undefined;
 
-      const setPost = (
-        post: { antall: number; qnLPrS: number; du: number },
-        defQn: number,
-        defDu: number
-      ) => {
-        post.antall = ant;
-        if (qn !== undefined && qn > 0) post.qnLPrS = qn;
-        else if (!post.qnLPrS) post.qnLPrS = defQn;
-        if (du !== undefined && du > 0) post.du = du;
-        else if (!post.du) post.du = defDu;
-        if (ant > 0) funnetNoe = true;
-      };
+      let funnetType: keyof typeof poster | null = null;
+      let funnetAntall: number | undefined;
+      let funnetQn: number | undefined;
+      let funnetDu: number | undefined;
 
-      if (/badekar|\bkar\b/.test(forste)) {
-        setPost(poster.badekar!, 0.3, 0.8);
-      } else if (/vaskemaskin|tøyvask/.test(forste)) {
-        setPost(poster.vaskemaskin!, 0.2, 0.8);
-      } else if (/oppvask/.test(forste)) {
-        setPost(poster.oppvaskmaskin, 0.2, 0.8);
-      } else if (/kjøkken|kjokken|oppvaskkum/.test(forste)) {
-        setPost(poster.kjokkenvask, 0.2, 0.8);
-      } else if (/utslag|skyllekum/.test(forste)) {
-        setPost(poster.utslagsvask!, 0.2, 0.8);
-      } else if (/toalett|\bwc\b|klosett/.test(forste)) {
-        setPost(poster.wc, 0.1, 2.0);
-      } else if (/urinal/.test(forste)) {
-        setPost(poster.urinal, 0.1, 0.5);
-      } else if (/dusj/.test(forste)) {
-        setPost(poster.dusj, 0.2, 0.8);
-      } else if (/servant|håndvask|vask/.test(forste)) {
-        setPost(poster.servant, 0.1, 0.5);
+      // Let gjennom celler i raden
+      for (let i = 0; i < rad.length; i++) {
+        const celle = rad[i].trim();
+        const typeMatch = matchArmaturType(celle);
+        if (typeMatch && !funnetType) {
+          funnetType = typeMatch;
+        } else {
+          const ant = parseAntallMedParenteser(celle);
+          if (ant > 0 && funnetAntall === undefined) {
+            funnetAntall = ant;
+          }
+        }
+      }
+
+      // Prioriter eksplisitte kolonneindekser fra tabell-header hvis definert
+      if (antallIdx >= 0 && rad[antallIdx] !== undefined) {
+        const antFraHeader = parseAntallMedParenteser(rad[antallIdx]);
+        if (antFraHeader > 0) funnetAntall = antFraHeader;
+      }
+      if (qnIdx >= 0 && rad[qnIdx] !== undefined) {
+        funnetQn = parseNorskTall(rad[qnIdx]);
+      }
+      if (duIdx >= 0 && rad[duIdx] !== undefined) {
+        funnetDu = parseNorskTall(rad[duIdx]);
+      }
+
+      if (funnetType && funnetAntall !== undefined && funnetAntall > 0) {
+        setVerdi(funnetType, funnetAntall, funnetQn, funnetDu);
       }
     }
   }
 
-  // Fallback: les linjer / punktlister hvis ingen tabellrader ga treff
-  if (!funnetNoe) {
-    const linjer = innhold.split(/\r?\n/);
-    for (const l of linjer) {
-      const lav = l.toLowerCase();
-      const matchEtterSkilletegn = l.match(/[:=–-]\s*([^\n\r]+)/);
-      const ant = parseAntallMedParenteser(matchEtterSkilletegn ? matchEtterSkilletegn[1] : l);
-      if (ant <= 0) continue;
+  // 2. Linjebasert parsing for rader med pipe eller kolon (f.eks. "Dusj | 1", "Toalett | 3", "Dusj: 1 stk")
+  const linjer = innhold.split(/\r?\n/);
+  for (const linje of linjer) {
+    const trim = linje.trim();
+    if (!trim) continue;
 
-      const setPost = (
-        post: { antall: number; qnLPrS: number; du: number },
-        defQn: number,
-        defDu: number
-      ) => {
-        post.antall = ant;
-        if (!post.qnLPrS) post.qnLPrS = defQn;
-        if (!post.du) post.du = defDu;
-        funnetNoe = true;
-      };
-
-      if (/badekar|\bkar\b/.test(lav)) {
-        setPost(poster.badekar!, 0.3, 0.8);
-      } else if (/vaskemaskin|tøyvask/.test(lav)) {
-        setPost(poster.vaskemaskin!, 0.2, 0.8);
-      } else if (/oppvask/.test(lav)) {
-        setPost(poster.oppvaskmaskin, 0.2, 0.8);
-      } else if (/kjøkken|kjokken|oppvaskkum/.test(lav)) {
-        setPost(poster.kjokkenvask, 0.2, 0.8);
-      } else if (/utslag|skyllekum/.test(lav)) {
-        setPost(poster.utslagsvask!, 0.2, 0.8);
-      } else if (/toalett|\bwc\b|klosett/.test(lav)) {
-        setPost(poster.wc, 0.1, 2.0);
-      } else if (/urinal/.test(lav)) {
-        setPost(poster.urinal, 0.1, 0.5);
-      } else if (/dusj/.test(lav)) {
-        setPost(poster.dusj, 0.2, 0.8);
-      } else if (/servant|håndvask|vask/.test(lav)) {
-        setPost(poster.servant, 0.1, 0.5);
+    if (trim.includes('|')) {
+      const biter = trim.split('|').map((b) => b.trim()).filter(Boolean);
+      if (biter.length >= 2) {
+        const type0 = matchArmaturType(biter[0]);
+        const type1 = matchArmaturType(biter[1]);
+        if (type0 && !type1) {
+          const ant = parseAntallMedParenteser(biter[1]);
+          if (ant > 0) setVerdi(type0, ant);
+        } else if (type1 && !type0) {
+          const ant = parseAntallMedParenteser(biter[0]);
+          if (ant > 0) setVerdi(type1, ant);
+        }
+      }
+    } else {
+      const kolonMatch = trim.match(/^[-*•]?\s*([a-zA-ZæøåÆØÅ/\s]+)\s*[:=–-]\s*([^\n\r]+)/);
+      if (kolonMatch) {
+        const armType = matchArmaturType(kolonMatch[1]);
+        if (armType) {
+          const ant = parseAntallMedParenteser(kolonMatch[2]);
+          if (ant > 0) setVerdi(armType, ant);
+        }
       }
     }
   }
@@ -1094,19 +1151,19 @@ export function parseVarmeanlegg(
 
   // Regex / linje-sjekk for ustrukturerte eller delvis strukturerte felt
   if (!v.varmekilde) {
-    const vkMatch = innhold.match(/(?:varmekilde|energikilde|primærvarme)\s*[:=–-]\s*([^\n\r|;]{2,60})/i);
+    const vkMatch = innhold.match(/(?:varmekilde|energikilde|primærvarme)\s*[:=|\-–]\s*([^\n\r|;]{2,60})/i);
     if (vkMatch) v.varmekilde = vkMatch[1].trim();
   }
   if (v.antallRadiatorer === undefined) {
     const radMatch =
-      innhold.match(/(?:antall\s*radiatorer|antallRadiatorer|radiatorer)\s*[:=–-]?\s*(\d+)/i) ||
+      innhold.match(/(?:antall\s*radiatorer|antallRadiatorer|radiatorer)\s*[:=|\-–]?\s*(\d+)/i) ||
       innhold.match(/(\d+)\s*(?:stk\.?\s*)?radiatorer\b/i);
     if (radMatch) v.antallRadiatorer = parseNorskTall(radMatch[1]);
   }
   if (v.gulvvarmeM2 === undefined) {
     const gvMatch =
-      innhold.match(/(?:gulvvarme(?:_?m2|m²)?|gulvvarmeareal)\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)/i) ||
-      innhold.match(/gulvvarme\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:m²|m2|kvm)/i);
+      innhold.match(/(?:gulvvarme(?:_?m2|m²)?|gulvvarmeareal)\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)/i) ||
+      innhold.match(/gulvvarme\s*[:=|\-–]?\s*(\d+(?:[,.]\d+)?)\s*(?:m²|m2|kvm)/i);
     if (gvMatch) v.gulvvarmeM2 = parseNorskTall(gvMatch[1]);
   }
   if (v.turTemperaturC === undefined || v.returTemperaturC === undefined) {
@@ -1419,7 +1476,7 @@ export function parseProsjektMarkdown(tekst: string, filNavn = ''): UttrekkResul
           `Sanitærutstyr: Σ q_n = ${poster.sumQn} l/s, Σ DU = ${poster.sumDu}, q_s = ${poster.qsLPrS} l/s`
         );
         const dusjerTotalt = (poster.dusj?.antall || 0) + (poster.badekar?.antall || 0);
-        if (dusjerTotalt > 0 && !res.belastning) {
+        if (dusjerTotalt > 0) {
           res.belastning = { dusjer: dusjerTotalt, dusjMinutter: 20, dusjLs: 0.2 };
         }
       }
@@ -1459,7 +1516,7 @@ export function parseProsjektMarkdown(tekst: string, filNavn = ''): UttrekkResul
         `Sanitærutstyr: Σ q_n = ${posterGen.sumQn} l/s, Σ DU = ${posterGen.sumDu}, q_s = ${posterGen.qsLPrS} l/s`
       );
       const dusjerTotalt = (posterGen.dusj?.antall || 0) + (posterGen.badekar?.antall || 0);
-      if (dusjerTotalt > 0 && !res.belastning) {
+      if (dusjerTotalt > 0) {
         res.belastning = { dusjer: dusjerTotalt, dusjMinutter: 20, dusjLs: 0.2 };
       }
     }
@@ -2161,7 +2218,7 @@ export function flettUttrekkInnIProsjekt(
     kilde: 'bruker',
     navn: nyttNavn,
     bygningstype: u.bygningstype || base.bygningstype,
-    bra: u.bra ?? base.bra,
+    bra: u.bra !== undefined && Number.isFinite(u.bra) ? u.bra : base.bra,
     etasjer: u.etasjer || base.etasjer,
     sted: u.sted || base.sted,
     matrikkel: u.matrikkel || base.matrikkel,
@@ -2243,7 +2300,12 @@ export function flettUttrekkInnIProsjekt(
       maksPaaslippLs: u.overvann?.maksPaaslippLs ?? base.overvann.maksPaaslippLs,
     },
     belastning: {
-      dusjer: u.belastning?.dusjer ?? base.belastning.dusjer,
+      dusjer:
+        u.belastning?.dusjer !== undefined && Number.isFinite(u.belastning.dusjer)
+          ? u.belastning.dusjer
+          : u.sanitaerUtstyr?.dusj?.antall !== undefined && u.sanitaerUtstyr.dusj.antall > 0
+          ? u.sanitaerUtstyr.dusj.antall
+          : base.belastning.dusjer,
       dusjMinutter: u.belastning?.dusjMinutter ?? base.belastning.dusjMinutter,
       dusjLs: u.belastning?.dusjLs ?? base.belastning.dusjLs,
     },

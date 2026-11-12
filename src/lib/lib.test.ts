@@ -1555,6 +1555,73 @@ effektbehov: 28 kW
         expect(varmeResultat?.returTemperaturC).toBe(40);
         expect(varmeResultat?.effektbehovKw).toBe(28);
       });
+
+      it('håndterer TP-01_enebolig korrekt: henter BRA fra arealM2 (ikke gulvvarmeM2), skiller Dusj 1 og Toalett 3, og renser tall', () => {
+        const tp01Dokument = `
+# TP-01_enebolig
+arealM2 | 240
+gulvvarmeM2 | 25
+Dusj | 1
+Toalett | 3
+`;
+        const braResultat = trekkUtBra(tp01Dokument);
+        expect(braResultat.bra).toBe(240);
+        expect(braResultat.bra).not.toBe(25);
+        expect(typeof braResultat.bra).toBe('number');
+
+        const uttrekk = parseProsjektMarkdown(tp01Dokument, 'TP-01_enebolig.md');
+        expect(uttrekk.bra).toBe(240);
+        expect(typeof uttrekk.bra).toBe('number');
+
+        // Varmeanlegg gulvvarme
+        expect(uttrekk.varmeanlegg?.gulvvarmeM2).toBe(25);
+        expect(typeof uttrekk.varmeanlegg?.gulvvarmeM2).toBe('number');
+
+        // Sanitærutstyr: Eksakt per rad
+        expect(uttrekk.sanitaerUtstyr).toBeDefined();
+        const s = uttrekk.sanitaerUtstyr!;
+        expect(s.dusj.antall).toBe(1);
+        expect(typeof s.dusj.antall).toBe('number');
+        expect(s.wc.antall).toBe(3);
+        expect(typeof s.wc.antall).toBe('number');
+
+        // Belastning dusjer skal være 1 (dusj), ikke 3 (toalett)!
+        expect(uttrekk.belastning?.dusjer).toBe(1);
+        expect(typeof uttrekk.belastning?.dusjer).toBe('number');
+
+        // AnalyserTekstLokalt integrasjon
+        const lokalt = analyserTekstLokalt(tp01Dokument, 'TP-01_enebolig.txt');
+        expect(lokalt.bra).toBe(240);
+        expect(lokalt.varmeanlegg?.gulvvarmeM2).toBe(25);
+        expect(lokalt.sanitaerUtstyr?.dusj.antall).toBe(1);
+        expect(lokalt.sanitaerUtstyr?.wc.antall).toBe(3);
+        expect(lokalt.belastning?.dusjer).toBe(1);
+
+        // Flett inn i prosjekt og verifiser state
+        const base = tomtProsjekt('tp-01');
+        const flettet = flettUttrekkInnIProsjekt(base, lokalt);
+        expect(flettet.bra).toBe(240);
+        expect(flettet.varmeanlegg?.gulvvarmeM2).toBe(25);
+        expect(flettet.sanitaerUtstyr?.dusj.antall).toBe(1);
+        expect(flettet.sanitaerUtstyr?.wc.antall).toBe(3);
+        expect(flettet.belastning.dusjer).toBe(1);
+        expect(Number.isFinite(flettet.bra)).toBe(true);
+      });
+
+      it('håndterer rader med tabell-pipes | arealM2 | 240 | og | Toalett | 3 | uten overskriftsrad', () => {
+        const pipeDokument = `
+| arealM2 | 240 |
+| gulvvarmeM2 | 25 |
+| Dusj | 1 |
+| Toalett | 3 |
+`;
+        const uttrekk = parseProsjektMarkdown(pipeDokument);
+        expect(uttrekk.bra).toBe(240);
+        expect(uttrekk.varmeanlegg?.gulvvarmeM2).toBe(25);
+        expect(uttrekk.sanitaerUtstyr?.dusj.antall).toBe(1);
+        expect(uttrekk.sanitaerUtstyr?.wc.antall).toBe(3);
+        expect(uttrekk.belastning?.dusjer).toBe(1);
+      });
     });
   });
 });

@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ProsjektData } from '../data/prosjekter';
 import type { ProsjektAnalyse } from '../lib/analyse';
 import { BEREDER_ANTAGELSER } from '../lib/analyse';
 import type { ProsjektFil, UttrekkResultat } from '../lib/filer';
-import { FIL_KATEGORI_ETIKETTER } from '../lib/filer';
+import {
+  FIL_KATEGORI_ETIKETTER,
+  analyserTekstLokalt,
+  flettUttrekkInnIProsjekt,
+  harUttrekkData,
+  lagKortFunnTekst,
+  lesOgAnalyserFilLokalt,
+} from '../lib/filer';
 import { lastNedTekst } from '../lib/format';
 import {
   flettKartverketInnIProsjekt,
@@ -150,12 +157,65 @@ export default function ProsjektVeiviser({
   const [sokerKartverket, setSokerKartverket] = useState(false);
   const [kartverketTreff, setKartverketTreff] = useState<KartverketAdresseTreff[]>([]);
   const [kartverketStatus, setKartverketStatus] = useState<string | null>(null);
+  const [drarOverSteg1, setDrarOverSteg1] = useState(false);
 
   useEffect(() => {
     setAdresseSok(prosjekt.sted || '');
     setKartverketTreff([]);
     setKartverketStatus(null);
   }, [prosjekt.id, prosjekt.sted]);
+
+  // Fletter uttrekk direkte inn i prosjekt-staten og oppdaterer adressefeltet umiddelbart
+  const handterBrukUttrekkLokalt = useCallback(
+    (uttrekk: UttrekkResultat, modus: 'oppdater' | 'nytt') => {
+      if (modus === 'oppdater') {
+        const oppdatert = flettUttrekkInnIProsjekt(prosjekt, uttrekk);
+        onOppdaterProsjekt(oppdatert);
+        if (oppdatert.sted) {
+          setAdresseSok(oppdatert.sted);
+        }
+      }
+      onBrukUttrekk(uttrekk, modus);
+    },
+    [prosjekt, onOppdaterProsjekt, onBrukUttrekk]
+  );
+
+  // Global fil-dropp for hele Steg 1
+  const handterFilDropSteg1 = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDrarOverSteg1(false);
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length === 0) return;
+
+    try {
+      const nye: ProsjektFil[] = [];
+      const samledeTekster: string[] = [];
+      for (const f of files) {
+        const pf = await lesOgAnalyserFilLokalt(f, prosjekt.id);
+        nye.push(pf);
+        if (pf.uttrukketTekst) samledeTekster.push(pf.uttrukketTekst);
+      }
+      onFilerLastetOpp(nye);
+
+      const aktivtUttrekk = analyserTekstLokalt(
+        samledeTekster.join('\n\n'),
+        files[0]?.name ?? ''
+      );
+
+      if (harUttrekkData(aktivtUttrekk)) {
+        const oppdatert = flettUttrekkInnIProsjekt(prosjekt, aktivtUttrekk);
+        onOppdaterProsjekt(oppdatert);
+        if (oppdatert.sted) setAdresseSok(oppdatert.sted);
+        onBrukUttrekk(aktivtUttrekk, 'oppdater');
+        const kortTekst = lagKortFunnTekst(aktivtUttrekk);
+        melding(`✅ ${kortTekst}`);
+      } else {
+        melding(`📂 Lastet opp ${nye.length} fil(er) til «${prosjekt.navn}»!`);
+      }
+    } catch {
+      melding('⚠️ Kunne ikke analysere de slupne filene automatisk.');
+    }
+  };
 
   const steg = STEG_DEF.find((s) => s.nr === aktivtSteg) ?? STEG_DEF[0];
   const qaFullfort = QA_PUNKTER.filter((p) => qa[p.id]).length;
@@ -388,7 +448,17 @@ export default function ProsjektVeiviser({
 
       {/* STEG 1: LAST OPP DOKUMENTER/TEGNINGER & PROSJEKTOPPSTART (AGENT 01) */}
       {aktivtSteg === 1 && (
-        <div className="space-y-4">
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDrarOverSteg1(true);
+          }}
+          onDragLeave={() => setDrarOverSteg1(false)}
+          onDrop={handterFilDropSteg1}
+          className={`space-y-4 rounded-2xl transition-all ${
+            drarOverSteg1 ? 'p-2 ring-4 ring-emerald-500 bg-emerald-950/20 shadow-2xl' : ''
+          }`}
+        >
           <Kort
             tittel="Steg 1A: Last opp dokumenter, plantegninger, bilder og lydfiler (AI Vision & Transkripsjon)"
             ikon="📂"
@@ -400,7 +470,7 @@ export default function ProsjektVeiviser({
               innstillinger={innstillinger}
               onFilerLastetOpp={onFilerLastetOpp}
               onOppdaterFil={onOppdaterFil}
-              onBrukUttrekk={onBrukUttrekk}
+              onBrukUttrekk={handterBrukUttrekkLokalt}
               onApneInnstillinger={onApneInnstillinger}
               melding={melding}
             />
@@ -791,6 +861,131 @@ export default function ProsjektVeiviser({
                   />
                 </label>
               </div>
+
+              {/* Hurtigfelt for Etasjer og Samtidige dusjer */}
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="block text-[11px] font-semibold text-slate-300">
+                  Antall etasjer
+                  <input
+                    type="text"
+                    value={prosjekt.etasjer || ''}
+                    placeholder="F.eks. 2 eller 3 + kjeller"
+                    onChange={(e) =>
+                      onOppdaterProsjekt({
+                        ...prosjekt,
+                        kilde: 'bruker',
+                        etasjer: e.target.value,
+                      })
+                    }
+                    className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 outline-none focus:border-emerald-500"
+                  />
+                </label>
+
+                <label className="block text-[11px] font-semibold text-slate-300">
+                  Samtidige dusjer (dim. varmtvann)
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={prosjekt.belastning?.dusjer ?? ''}
+                    placeholder="F.eks. 1 eller 2"
+                    onChange={(e) => {
+                      const ren = e.target.value.trim().replace(',', '.');
+                      const tall = ren === '' ? 0 : Number(ren);
+                      if (!Number.isFinite(tall)) return;
+                      onOppdaterProsjekt({
+                        ...prosjekt,
+                        kilde: 'bruker',
+                        belastning: {
+                          ...prosjekt.belastning,
+                          dusjer: tall,
+                        },
+                      });
+                    }}
+                    className="mt-1 min-h-[44px] w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 font-mono text-xs text-sky-300 outline-none focus:border-emerald-500"
+                  />
+                </label>
+              </div>
+
+              {/* Sanntidsvisning av uttrukket Sanitærutstyr, Varmeanlegg og Rørsystemer */}
+              {(prosjekt.sanitaerUtstyr || prosjekt.varmeanlegg || prosjekt.rorSystemer) && (
+                <div className="mt-4 rounded-xl border border-emerald-800/60 bg-emerald-950/20 p-3.5 text-xs">
+                  <div className="font-bold text-emerald-300">
+                    ✨ Automatisk registrerte installasjoner fra opplastet underlag:
+                  </div>
+                  <div className="mt-2 grid gap-2.5 sm:grid-cols-3">
+                    {prosjekt.sanitaerUtstyr && (
+                      <div className="rounded-lg border border-emerald-900/60 bg-slate-900/90 p-2.5">
+                        <div className="flex items-center justify-between font-bold text-slate-200">
+                          <span>💧 Sanitærutstyr</span>
+                          <span className="font-mono text-sky-300">q_s = {prosjekt.sanitaerUtstyr.qsLPrS} l/s</span>
+                        </div>
+                        <div className="mt-1.5 space-y-0.5 text-[11px] text-slate-300">
+                          <div>WC / Toalett: <strong className="text-emerald-300">{prosjekt.sanitaerUtstyr.wc.antall} stk</strong></div>
+                          <div>Dusj: <strong className="text-emerald-300">{prosjekt.sanitaerUtstyr.dusj.antall} stk</strong></div>
+                          <div>Servant: <strong className="text-slate-200">{prosjekt.sanitaerUtstyr.servant.antall} stk</strong></div>
+                          {Boolean(prosjekt.sanitaerUtstyr.badekar?.antall) && (
+                            <div>Badekar: <strong className="text-slate-200">{prosjekt.sanitaerUtstyr.badekar?.antall} stk</strong></div>
+                          )}
+                          {Boolean(prosjekt.sanitaerUtstyr.kjokkenvask?.antall) && (
+                            <div>Kjøkkenvask: <strong className="text-slate-200">{prosjekt.sanitaerUtstyr.kjokkenvask.antall} stk</strong></div>
+                          )}
+                          <div className="mt-1 pt-1 border-t border-slate-800 text-[10px] text-slate-400">
+                            Σ q_n = {prosjekt.sanitaerUtstyr.sumQn} l/s · Σ DU = {prosjekt.sanitaerUtstyr.sumDu}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {prosjekt.varmeanlegg && (
+                      <div className="rounded-lg border border-emerald-900/60 bg-slate-900/90 p-2.5">
+                        <div className="flex items-center justify-between font-bold text-slate-200">
+                          <span>🔥 Varmeanlegg</span>
+                          {prosjekt.varmeanlegg.effektbehovKw && (
+                            <span className="font-mono text-amber-300">{prosjekt.varmeanlegg.effektbehovKw} kW</span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 space-y-0.5 text-[11px] text-slate-300">
+                          {prosjekt.varmeanlegg.varmekilde && (
+                            <div>Kilde: <strong className="text-emerald-300">{prosjekt.varmeanlegg.varmekilde}</strong></div>
+                          )}
+                          {prosjekt.varmeanlegg.antallRadiatorer !== undefined && (
+                            <div>Radiatorer: <strong className="text-emerald-300">{prosjekt.varmeanlegg.antallRadiatorer} stk</strong></div>
+                          )}
+                          {prosjekt.varmeanlegg.gulvvarmeM2 !== undefined && (
+                            <div>Gulvvarme: <strong className="text-emerald-300">{prosjekt.varmeanlegg.gulvvarmeM2} m²</strong></div>
+                          )}
+                          {prosjekt.varmeanlegg.turTemperaturC && prosjekt.varmeanlegg.returTemperaturC && (
+                            <div>Tur/retur: <strong className="text-slate-200">{prosjekt.varmeanlegg.turTemperaturC}/{prosjekt.varmeanlegg.returTemperaturC} °C</strong></div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {prosjekt.rorSystemer && (
+                      <div className="rounded-lg border border-emerald-900/60 bg-slate-900/90 p-2.5">
+                        <div className="flex items-center justify-between font-bold text-slate-200">
+                          <span>🚰 Rørsystemer</span>
+                          <span className="font-mono text-emerald-300">{prosjekt.rorSystemer.poster?.length ?? 0} kurser</span>
+                        </div>
+                        <div className="mt-1.5 space-y-0.5 text-[11px] text-slate-300">
+                          {prosjekt.rorSystemer.poster?.map((p, idx) => (
+                            <div key={idx} className="truncate">
+                              {p.navn}: <strong className="text-slate-200">{p.dimensjon ?? ''}</strong>
+                              {p.lengdeM ? ` (${p.lengdeM} m)` : ''}
+                            </div>
+                          ))}
+                          {prosjekt.rorSystemer.totalLengdeM && (
+                            <div className="mt-1 pt-1 border-t border-slate-800 text-[10px] text-slate-400">
+                              Total rørlengde: {prosjekt.rorSystemer.totalLengdeM} m
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {prosjekt.koter.gate !== null &&
                 (prosjekt.koter.itrKum === null || prosjekt.koter.ibrKum === null) && (

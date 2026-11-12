@@ -75,6 +75,45 @@ export function genererTrykkfallMarkdown(ops: TrykkfallMarkdownOpsjoner): string
     `- **Disponibelt trykk til rørfriksjon (p_disp,frik):** ${fmt(bud.dispFriksjon)} kPa`,
     `- **Total rørlengde (ugunstigste trasé Σ l):** ${fmt(sum.lengde, 1)} m`,
     `- **Midlere rørfriksjon (R_midlere = p_disp,frik / Σ l):** ${bud.midlereR !== null ? `${fmt(bud.midlereR, 3)} kPa/m` : '0,000 kPa/m'}`,
+    ...(prosjektData?.sanitaerUtstyr
+      ? [
+          ``,
+          `### Registrert Sanitærutstyr & Normflommer (Byggforsk 553.102 / NS-EN 806)`,
+          `| Armatur / Utstyr | Antall | q_n per enhet (l/s) | DU | Sum q_n (l/s) | Sum DU |`,
+          `| :--- | :---: | :---: | :---: | :---: | :---: |`,
+          `| Toalett / WC | ${prosjektData.sanitaerUtstyr.wc.antall} | ${prosjektData.sanitaerUtstyr.wc.qnLPrS} | ${prosjektData.sanitaerUtstyr.wc.du} | ${(prosjektData.sanitaerUtstyr.wc.antall * prosjektData.sanitaerUtstyr.wc.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.wc.antall * prosjektData.sanitaerUtstyr.wc.du).toFixed(1)} |`,
+          `| Servant / Håndvask | ${prosjektData.sanitaerUtstyr.servant.antall} | ${prosjektData.sanitaerUtstyr.servant.qnLPrS} | ${prosjektData.sanitaerUtstyr.servant.du} | ${(prosjektData.sanitaerUtstyr.servant.antall * prosjektData.sanitaerUtstyr.servant.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.servant.antall * prosjektData.sanitaerUtstyr.servant.du).toFixed(1)} |`,
+          ...(prosjektData.sanitaerUtstyr.urinal.antall > 0
+            ? [`| Urinal | ${prosjektData.sanitaerUtstyr.urinal.antall} | ${prosjektData.sanitaerUtstyr.urinal.qnLPrS} | ${prosjektData.sanitaerUtstyr.urinal.du} | ${(prosjektData.sanitaerUtstyr.urinal.antall * prosjektData.sanitaerUtstyr.urinal.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.urinal.antall * prosjektData.sanitaerUtstyr.urinal.du).toFixed(1)} |`]
+            : []),
+          `| Dusj | ${prosjektData.sanitaerUtstyr.dusj.antall} | ${prosjektData.sanitaerUtstyr.dusj.qnLPrS} | ${prosjektData.sanitaerUtstyr.dusj.du} | ${(prosjektData.sanitaerUtstyr.dusj.antall * prosjektData.sanitaerUtstyr.dusj.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.dusj.antall * prosjektData.sanitaerUtstyr.dusj.du).toFixed(1)} |`,
+          `| Kjøkkenvask | ${prosjektData.sanitaerUtstyr.kjokkenvask.antall} | ${prosjektData.sanitaerUtstyr.kjokkenvask.qnLPrS} | ${prosjektData.sanitaerUtstyr.kjokkenvask.du} | ${(prosjektData.sanitaerUtstyr.kjokkenvask.antall * prosjektData.sanitaerUtstyr.kjokkenvask.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.kjokkenvask.antall * prosjektData.sanitaerUtstyr.kjokkenvask.du).toFixed(1)} |`,
+          `| Oppvaskmaskin | ${prosjektData.sanitaerUtstyr.oppvaskmaskin.antall} | ${prosjektData.sanitaerUtstyr.oppvaskmaskin.qnLPrS} | ${prosjektData.sanitaerUtstyr.oppvaskmaskin.du} | ${(prosjektData.sanitaerUtstyr.oppvaskmaskin.antall * prosjektData.sanitaerUtstyr.oppvaskmaskin.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.oppvaskmaskin.antall * prosjektData.sanitaerUtstyr.oppvaskmaskin.du).toFixed(1)} |`,
+          ...(prosjektData.sanitaerUtstyr.badekar?.antall
+            ? [`| Badekar | ${prosjektData.sanitaerUtstyr.badekar.antall} | ${prosjektData.sanitaerUtstyr.badekar.qnLPrS} | ${prosjektData.sanitaerUtstyr.badekar.du} | ${(prosjektData.sanitaerUtstyr.badekar.antall * prosjektData.sanitaerUtstyr.badekar.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.badekar.antall * prosjektData.sanitaerUtstyr.badekar.du).toFixed(1)} |`]
+            : []),
+          ...(prosjektData.sanitaerUtstyr.vaskemaskin?.antall
+            ? [`| Vaskemaskin (tøy) | ${prosjektData.sanitaerUtstyr.vaskemaskin.antall} | ${prosjektData.sanitaerUtstyr.vaskemaskin.qnLPrS} | ${prosjektData.sanitaerUtstyr.vaskemaskin.du} | ${(prosjektData.sanitaerUtstyr.vaskemaskin.antall * prosjektData.sanitaerUtstyr.vaskemaskin.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.vaskemaskin.antall * prosjektData.sanitaerUtstyr.vaskemaskin.du).toFixed(1)} |`]
+            : []),
+          ...(prosjektData.sanitaerUtstyr.utslagsvask?.antall
+            ? [`| Utslagsvask | ${prosjektData.sanitaerUtstyr.utslagsvask.antall} | ${prosjektData.sanitaerUtstyr.utslagsvask.qnLPrS} | ${prosjektData.sanitaerUtstyr.utslagsvask.du} | ${(prosjektData.sanitaerUtstyr.utslagsvask.antall * prosjektData.sanitaerUtstyr.utslagsvask.qnLPrS).toFixed(2)} | ${(prosjektData.sanitaerUtstyr.utslagsvask.antall * prosjektData.sanitaerUtstyr.utslagsvask.du).toFixed(1)} |`]
+            : []),
+          `| **SUMMER** | - | - | - | **${prosjektData.sanitaerUtstyr.sumQn.toFixed(2)} l/s** | **${prosjektData.sanitaerUtstyr.sumDu.toFixed(1)}** |`,
+          ``,
+          `- **Dimensjonerende samtidig vannmengde q_s:** **${prosjektData.sanitaerUtstyr.qsLPrS.toFixed(2)} l/s**`,
+        ]
+      : []),
+    ...(prosjektData?.rorSystemer?.poster && prosjektData.rorSystemer.poster.length > 0
+      ? [
+          ``,
+          `### Registrerte Rørsystemer i bygget`,
+          `| System | Dimensjon | Lengde (m) | Materiale |`,
+          `| :--- | :---: | :---: | :--- |`,
+          ...prosjektData.rorSystemer.poster.map(
+            (p) => `| ${p.navn} | ${p.dimensjon || '-'} | ${p.lengdeM !== undefined ? `${p.lengdeM} m` : '-'} | ${p.materiale || '-'} |`
+          ),
+        ]
+      : []),
     ``,
     `## 2. Dimensjoneringstabell for rørstrekk (Byggforsk 553.102)`,
     `Formel for samtidig vannmengde: q_S = q_N1 + 0,015 × (Σ q_N − q_N1) + 0,17 × √(Σ q_N − q_N1)`,

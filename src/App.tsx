@@ -423,14 +423,31 @@ function AppInnhold() {
         });
       }
     } else {
-      const oppdatert = flettUttrekkInnIProsjekt(prosjekt, uttrekk);
-      oppdaterAktivtProsjekt(oppdatert);
+      let flettetProsjekt: ProsjektData = prosjekt;
+      setTilstand((prev) => {
+        const gjeldende =
+          prev.brukerProsjekter.find((p) => p.id === prev.aktivId) ||
+          PROSJEKT_PRESETS.find((p) => p.id === prev.aktivId) ||
+          prosjekt;
+        const oppdatert = flettUttrekkInnIProsjekt(gjeldende, uttrekk);
+        flettetProsjekt = oppdatert;
+        const lagret: ProsjektData = { ...oppdatert, kilde: 'bruker' };
+        const finnes = prev.brukerProsjekter.some((p) => p.id === lagret.id);
+        const brukerProsjekter = finnes
+          ? prev.brukerProsjekter.map((p) => (p.id === lagret.id ? lagret : p))
+          : [lagret, ...prev.brukerProsjekter];
+        return {
+          ...prev,
+          brukerProsjekter,
+          aktivId: lagret.id,
+        };
+      });
       const kortFunn = lagKortFunnTekst(uttrekk);
-      melding(kortFunn ? `✅ ${kortFunn}` : `✨ Oppdaterte prosjektdata på «${oppdatert.navn}»!`);
+      melding(kortFunn ? `✅ ${kortFunn}` : `✨ Oppdaterte prosjektdata på «${flettetProsjekt.navn}»!`);
       if (uttrekk.sted && uttrekk.sted.trim().length >= 3) {
         void slaaOppAdresseOgKoteIKartverket(uttrekk.sted).then((kv) => {
           if (kv) {
-            const { prosjekt: medKv, endringer } = flettKartverketInnIProsjekt(oppdatert, kv);
+            const { prosjekt: medKv, endringer } = flettKartverketInnIProsjekt(flettetProsjekt, kv);
             oppdaterAktivtProsjekt(medKv, endringer);
           }
         });
