@@ -4,6 +4,9 @@ import type {
   UVerdierData,
   SanitaerUtstyrData,
   VentilasjonKravData,
+  RorSystemPost,
+  RorSystemerData,
+  VarmeanleggData,
 } from '../data/prosjekter';
 import { beregnQs } from '../engine/sanitaer';
 
@@ -64,6 +67,10 @@ export interface UttrekkResultat {
   uVerdier?: UVerdierData;
   klimaskjerm?: UVerdierData;
   sanitaerUtstyr?: SanitaerUtstyrData;
+  /** Rørsystemer (kaldtvann, varmtvann, avløp, varme) */
+  rorSystemer?: RorSystemerData;
+  /** Varmeanlegg (varmekilde, radiatorer, gulvvarme, tur/retur, effekt) */
+  varmeanlegg?: VarmeanleggData;
   ventilasjon?: VentilasjonKravData;
   transmisjonstapWPerK?: number;
   koter?: {
@@ -480,8 +487,10 @@ export async function lesOgAnalyserFilLokalt(
 
 function parseNorskTall(verdi: string | undefined): number | undefined {
   if (!verdi) return undefined;
-  const ren = verdi.replace(/\s+/g, '').replace(',', '.');
-  const n = Number(ren);
+  const ren = String(verdi).replace(/\s+/g, '').replace(',', '.');
+  const match = ren.match(/^-?\d+(?:\.\d+)?/);
+  if (!match) return undefined;
+  const n = parseFloat(match[0]);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -523,8 +532,13 @@ function normaliserDokumentTekst(råTekst: string): string {
 /**
  * Trekker ut BRA (bruksareal / oppvarmet areal) og eventuelt etasjeantall fra tekst,
  * inkludert regnestykker som «BRA | 3 × 800 = 2 400 m²», tabellrader, og standardformater.
+ * Støtter synonymer som 'arealM2', 'areal_m2' og velger den største verdien som hovedareal
+ * slik at det ikke forveksles med f.eks. 'gulvvarmeM2 = 25'.
  */
 export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
+  const kandidater: number[] = [];
+  let funnetEtasjer: string | undefined;
+
   // 1. Multiplikasjonsuttrykk: f.eks. "BRA | 3 x 800 = 2 400 m²", "3 etasjer á 800 m² = 2400 m²" eller "3 x 800 m²"
   const multMatch =
     tekst.match(
@@ -540,33 +554,53 @@ export function trekkUtBra(tekst: string): { bra?: number; etasjer?: string } {
     const tot = parseNorskTall(multMatch[3]);
     const b = tot || (etg && prFlate ? etg * prFlate : undefined);
     if (b && b >= 15 && b <= 500000) {
-      return { bra: b, etasjer: etg ? String(etg) : undefined };
+      kandidater.push(b);
+      if (etg) funnetEtasjer = String(etg);
     }
   }
 
-  // 2. Eksplisitt BRA med skilletegn (inkludert kolon, likhetstegn og pipe |)
-  const braEksplisittMatch = tekst.match(
-    /(?:oppvarmet\s+BRA|totalt?\s+areal\s+BRA|totalt?\s+BRA|bruksareal(?:\s*\(BRA\))?|oppvarmet\s+(?:bruks)?areal|\bBRA\b|\bBTA\b|bruttoareal|byggareal|areal(?:et)?|bygget\s+er(?:\s+på)?)\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=|\-–])+\s*(\d[\d\s]*)(?:\s*(?:m²|m2|kvm|kvadratmeter))?/i
+  // 2. Eksplisitt BRA / BTA / oppvarmet areal / bruksareal med skilletegn (inkludert kolon, likhetstegn og pipe |)
+  const braMatches = tekst.matchAll(
+    /(?:oppvarmet\s+BRA|totalt?\s+areal\s+BRA|totalt?\s+BRA|bruksareal(?:\s*\(BRA\))?|oppvarmet\s+(?:bruks)?areal|\bBRA\b|\bBTA\b|bruttoareal|byggareal|bygget\s+er(?:\s+på)?)\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=|\-–])+\s*(\d[\d\s]*(?:[,.]\d+)?)(?:\s*(?:m²|m2|kvm|kvadratmeter))?/gi
   );
-  if (braEksplisittMatch) {
-    const b = parseNorskTall(braEksplisittMatch[1]);
+  for (const m of braMatches) {
+    const b = parseNorskTall(m[1]);
     if (b && b >= 15 && b <= 500000) {
-      return { bra: b };
+      kandidater.push(b);
     }
   }
 
-  // 3. Fallback: Tall med m² og eksplisitt enhetsangivelse
-  const m2Match = tekst.match(
-    /(\d{1,3}(?:[ \t]\d{3})*|\d{2,6})\s*(?:m²|m2|kvm|kvadratmeter)\s*(?:BRA|BTA|oppvarmet|bruksareal)?/i
+  // 3. arealM2 / areal_m2 / areal m2 / totalareal (men ikke gulvvarmeM2, badAreal etc.)
+  const arealM2Matches = tekst.matchAll(
+    /(?<![a-zA-Z0-9_])(?<!gulv(?:varme)?|bad|rom|del|tak|vegg|leilighet|kontor|tomt|asfalt|ute)(?:totalt?\s+)?(?:areal(?:[\s_]?(?:m2|m²))?)(?![a-zA-Z0-9_])\s*(?:\([^)]*\))?\s*(?:er|på|ca\.?|[:=|\-–])+\s*(\d[\d\s]*(?:[,.]\d+)?)/gi
   );
-  if (m2Match) {
-    const b = parseNorskTall(m2Match[1]);
+  for (const m of arealM2Matches) {
+    const b = parseNorskTall(m[1]);
     if (b && b >= 15 && b <= 500000) {
-      return { bra: b };
+      kandidater.push(b);
     }
   }
 
-  return {};
+  // 4. Fallback: Tall med m² og eksplisitt enhetsangivelse dersom ingen kandidater funnet
+  if (kandidater.length === 0) {
+    const m2Match = tekst.match(
+      /(\d{1,3}(?:[ \t]\d{3})*|\d{2,6})\s*(?:m²|m2|kvm|kvadratmeter)\s*(?:BRA|BTA|oppvarmet|bruksareal)?/i
+    );
+    if (m2Match) {
+      const b = parseNorskTall(m2Match[1]);
+      if (b && b >= 15 && b <= 500000) {
+        kandidater.push(b);
+      }
+    }
+  }
+
+  if (kandidater.length === 0) {
+    return {};
+  }
+
+  // Velg den største verdien som hovedareal (slik at den ikke forveksles med mindre rom/gulvvarme-arealer)
+  const maksBra = Math.max(...kandidater);
+  return { bra: maksBra, etasjer: funnetEtasjer };
 }
 
 /**
@@ -720,6 +754,384 @@ export function parseMarkdownTabeller(tekst: string): string[][][] {
   }
 
   return tabeller;
+}
+
+/**
+ * Tolker sanitærutstyr fra tabeller (| Type | Antall | ...) og tekstlister.
+ * Gjenkjenner alle 8 standardarmaturer (WC, Servant, Urinal, Dusj, Kjøkkenvask, Oppvaskmaskin, Badekar, Vaskemaskin, Utslagsvask)
+ * og beregner sum q_n, sum DU og dimensjonerende q_s iht. SINTEF Byggforsk 553.102 / NS-EN 806.
+ */
+export function parseSanitaerUtstyrTabell(
+  innhold: string,
+  tabeller: string[][][] = []
+): SanitaerUtstyrData | undefined {
+  const tabs = tabeller.length > 0 ? tabeller : parseMarkdownTabeller(innhold);
+  const poster: SanitaerUtstyrData = {
+    wc: { antall: 0, qnLPrS: 0.1, du: 2.0 },
+    servant: { antall: 0, qnLPrS: 0.1, du: 0.5 },
+    urinal: { antall: 0, qnLPrS: 0.1, du: 0.5 },
+    dusj: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+    kjokkenvask: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+    oppvaskmaskin: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+    badekar: { antall: 0, qnLPrS: 0.3, du: 0.8 },
+    vaskemaskin: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+    utslagsvask: { antall: 0, qnLPrS: 0.2, du: 0.8 },
+    sumQn: 0,
+    sumDu: 0,
+    qsLPrS: 0,
+  };
+
+  let funnetNoe = false;
+
+  for (const tab of tabs) {
+    if (tab.length < 2) continue;
+    const h = tab[0].map((c) => c.toLowerCase());
+    const antallIdx = h.findIndex((c) => /antall|stk|mengde|\bant\b/.test(c));
+    const qnIdx = h.findIndex((c) => /q_?n|normflom|l\/s/.test(c));
+    const duIdx = h.findIndex((c) => /\bdu\b|design\s*unit|vekt/.test(c));
+
+    const dataRader = tab.slice(1);
+    for (const rad of dataRader) {
+      if (rad.length < 2) continue;
+      const forste = rad[0].toLowerCase();
+      const ant = parseAntallMedParenteser(
+        antallIdx >= 0 && rad[antallIdx] !== undefined ? rad[antallIdx] : rad[1]
+      );
+      const qn =
+        qnIdx >= 0 && rad[qnIdx] !== undefined
+          ? parseNorskTall(rad[qnIdx])
+          : rad[2]
+          ? parseNorskTall(rad[2])
+          : undefined;
+      const du =
+        duIdx >= 0 && rad[duIdx] !== undefined
+          ? parseNorskTall(rad[duIdx])
+          : rad[3]
+          ? parseNorskTall(rad[3])
+          : undefined;
+
+      const setPost = (
+        post: { antall: number; qnLPrS: number; du: number },
+        defQn: number,
+        defDu: number
+      ) => {
+        post.antall = ant;
+        if (qn !== undefined && qn > 0) post.qnLPrS = qn;
+        else if (!post.qnLPrS) post.qnLPrS = defQn;
+        if (du !== undefined && du > 0) post.du = du;
+        else if (!post.du) post.du = defDu;
+        if (ant > 0) funnetNoe = true;
+      };
+
+      if (/badekar|\bkar\b/.test(forste)) {
+        setPost(poster.badekar!, 0.3, 0.8);
+      } else if (/vaskemaskin|tøyvask/.test(forste)) {
+        setPost(poster.vaskemaskin!, 0.2, 0.8);
+      } else if (/oppvask/.test(forste)) {
+        setPost(poster.oppvaskmaskin, 0.2, 0.8);
+      } else if (/kjøkken|kjokken|oppvaskkum/.test(forste)) {
+        setPost(poster.kjokkenvask, 0.2, 0.8);
+      } else if (/utslag|skyllekum/.test(forste)) {
+        setPost(poster.utslagsvask!, 0.2, 0.8);
+      } else if (/toalett|\bwc\b|klosett/.test(forste)) {
+        setPost(poster.wc, 0.1, 2.0);
+      } else if (/urinal/.test(forste)) {
+        setPost(poster.urinal, 0.1, 0.5);
+      } else if (/dusj/.test(forste)) {
+        setPost(poster.dusj, 0.2, 0.8);
+      } else if (/servant|håndvask|vask/.test(forste)) {
+        setPost(poster.servant, 0.1, 0.5);
+      }
+    }
+  }
+
+  // Fallback: les linjer / punktlister hvis ingen tabellrader ga treff
+  if (!funnetNoe) {
+    const linjer = innhold.split(/\r?\n/);
+    for (const l of linjer) {
+      const lav = l.toLowerCase();
+      const matchEtterSkilletegn = l.match(/[:=–-]\s*([^\n\r]+)/);
+      const ant = parseAntallMedParenteser(matchEtterSkilletegn ? matchEtterSkilletegn[1] : l);
+      if (ant <= 0) continue;
+
+      const setPost = (
+        post: { antall: number; qnLPrS: number; du: number },
+        defQn: number,
+        defDu: number
+      ) => {
+        post.antall = ant;
+        if (!post.qnLPrS) post.qnLPrS = defQn;
+        if (!post.du) post.du = defDu;
+        funnetNoe = true;
+      };
+
+      if (/badekar|\bkar\b/.test(lav)) {
+        setPost(poster.badekar!, 0.3, 0.8);
+      } else if (/vaskemaskin|tøyvask/.test(lav)) {
+        setPost(poster.vaskemaskin!, 0.2, 0.8);
+      } else if (/oppvask/.test(lav)) {
+        setPost(poster.oppvaskmaskin, 0.2, 0.8);
+      } else if (/kjøkken|kjokken|oppvaskkum/.test(lav)) {
+        setPost(poster.kjokkenvask, 0.2, 0.8);
+      } else if (/utslag|skyllekum/.test(lav)) {
+        setPost(poster.utslagsvask!, 0.2, 0.8);
+      } else if (/toalett|\bwc\b|klosett/.test(lav)) {
+        setPost(poster.wc, 0.1, 2.0);
+      } else if (/urinal/.test(lav)) {
+        setPost(poster.urinal, 0.1, 0.5);
+      } else if (/dusj/.test(lav)) {
+        setPost(poster.dusj, 0.2, 0.8);
+      } else if (/servant|håndvask|vask/.test(lav)) {
+        setPost(poster.servant, 0.1, 0.5);
+      }
+    }
+  }
+
+  if (!funnetNoe) return undefined;
+
+  const allePoster = [
+    poster.wc,
+    poster.servant,
+    poster.urinal,
+    poster.dusj,
+    poster.kjokkenvask,
+    poster.oppvaskmaskin,
+    poster.badekar!,
+    poster.vaskemaskin!,
+    poster.utslagsvask!,
+  ];
+
+  poster.sumQn =
+    Math.round(allePoster.reduce((acc, p) => acc + p.antall * p.qnLPrS, 0) * 100) / 100;
+  poster.sumDu =
+    Math.round(allePoster.reduce((acc, p) => acc + p.antall * p.du, 0) * 10) / 10;
+
+  const qnList = allePoster.map((p) => (p.antall > 0 ? p.qnLPrS : 0));
+  const maksQn = Math.max(...qnList, 0);
+  poster.qsLPrS = Math.round(beregnQs(poster.sumQn, maksQn) * 100) / 100;
+
+  return poster;
+}
+
+/**
+ * Tolker tabeller og lister over rørsystemer (Kaldtvann, Varmtvann, Avløp, Varme).
+ * Trekker ut dimensjon (f.eks. DN 28, 28 mm), lengde (m) og materiale (Kobber, PP plast, PEX, Stål).
+ */
+export function parseRorSystemer(
+  innhold: string,
+  tabeller: string[][][] = []
+): RorSystemerData | undefined {
+  const tabs = tabeller.length > 0 ? tabeller : parseMarkdownTabeller(innhold);
+  const poster: RorSystemPost[] = [];
+  const systemer: Record<string, RorSystemPost> = {};
+
+  for (const tab of tabs) {
+    if (tab.length < 2) continue;
+    const h = tab[0].map((c) => c.toLowerCase());
+    const dimIdx = h.findIndex((c) => /dim|dn|diameter|størrelse/.test(c));
+    const lenIdx = h.findIndex((c) => /lengde|\bm\b|meter/.test(c));
+    const matIdx = h.findIndex((c) => /mat|kvalitet/.test(c));
+    const sysIdx = h.findIndex((c) => /system|type|rør|navn/.test(c));
+
+    for (const rad of tab.slice(1)) {
+      if (rad.length < 2) continue;
+      const sysCelle = sysIdx >= 0 ? rad[sysIdx] : rad[0];
+      const lav = sysCelle.toLowerCase();
+      let nøkkel: string | undefined;
+      let navn = sysCelle;
+
+      if (/kaldtvann|kaldt\s*vann|\bkv\b/.test(lav)) {
+        nøkkel = 'kaldtvann';
+        navn = 'Kaldtvann';
+      } else if (/varmtvann|varmt\s*vann|\bvv\b/.test(lav)) {
+        nøkkel = 'varmtvann';
+        navn = 'Varmtvann';
+      } else if (/avløp|avloep|spillvann|overvann/.test(lav)) {
+        nøkkel = 'avlop';
+        navn = 'Avløp';
+      } else if (/varme|radiator|hydronisk/.test(lav)) {
+        nøkkel = 'varme';
+        navn = 'Varme';
+      }
+
+      if (!nøkkel && !/rør|dn|mm/.test(rad.join(' ').toLowerCase())) continue;
+      if (!nøkkel) {
+        nøkkel = sysCelle.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      }
+
+      let dim = dimIdx >= 0 && rad[dimIdx] ? rad[dimIdx] : undefined;
+      let len = lenIdx >= 0 && rad[lenIdx] ? parseNorskTall(rad[lenIdx]) : undefined;
+      let mat = matIdx >= 0 && rad[matIdx] ? rad[matIdx] : undefined;
+
+      if (!dim) {
+        const m = rad.join(' ').match(/\b(DN\s*\d+|\d+\s*mm|Ø\s*\d+|Cu\s*\d+|PEX\s*\d+)\b/i);
+        if (m) dim = m[1];
+      }
+      if (len === undefined) {
+        const m = rad.join(' ').match(/(\d+(?:[,.]\d+)?)\s*(?:m\b|meter)/i);
+        if (m) len = parseNorskTall(m[1]);
+      }
+      if (!mat) {
+        const m = rad
+          .join(' ')
+          .match(/\b(kobber(?:\s*\(cu\))?|plast(?:\s*\([^)]*\))?|pp\s*plast|pp|pvc|pex|stål|alupux|rør-i-rør)\b/i);
+        if (m) mat = m[1];
+      }
+
+      const post: RorSystemPost = {
+        system: nøkkel,
+        navn,
+        dimensjon: dim,
+        lengdeM: len,
+        materiale: mat,
+      };
+      poster.push(post);
+      systemer[nøkkel] = post;
+    }
+  }
+
+  // Fallback til linjeparsing hvis ingen tabellrader ga uttelling
+  if (poster.length === 0) {
+    const linjer = innhold.split(/\r?\n/);
+    for (const l of linjer) {
+      const lav = l.toLowerCase();
+      let nøkkel: string | undefined;
+      let navn: string | undefined;
+
+      if (/kaldtvann|kaldt\s*vann|\bkv\b/.test(lav)) {
+        nøkkel = 'kaldtvann';
+        navn = 'Kaldtvann';
+      } else if (/varmtvann|varmt\s*vann|\bvv\b/.test(lav)) {
+        nøkkel = 'varmtvann';
+        navn = 'Varmtvann';
+      } else if (/avløp|avloep|spillvann/.test(lav)) {
+        nøkkel = 'avlop';
+        navn = 'Avløp';
+      } else if (/varme|radiator/.test(lav)) {
+        nøkkel = 'varme';
+        navn = 'Varme';
+      }
+
+      if (nøkkel) {
+        const dimMatch = l.match(/\b(DN\s*\d+|\d+\s*mm|Ø\s*\d+|Cu\s*\d+|PEX\s*\d+)\b/i);
+        const lenMatch = l.match(/(\d+(?:[,.]\d+)?)\s*(?:m\b|meter)/i);
+        const matMatch = l.match(
+          /\b(kobber(?:\s*\(cu\))?|plast(?:\s*\([^)]*\))?|pp\s*plast|pp|pvc|pex|stål|alupux|rør-i-rør)\b/i
+        );
+        const post: RorSystemPost = {
+          system: nøkkel,
+          navn: navn || nøkkel,
+          dimensjon: dimMatch ? dimMatch[1] : undefined,
+          lengdeM: lenMatch ? parseNorskTall(lenMatch[1]) : undefined,
+          materiale: matMatch ? matMatch[1] : undefined,
+        };
+        poster.push(post);
+        systemer[nøkkel] = post;
+      }
+    }
+  }
+
+  if (poster.length === 0) return undefined;
+  const totalLengdeM = poster.reduce((acc, p) => acc + (p.lengdeM || 0), 0);
+  return {
+    kaldtvann: systemer.kaldtvann,
+    varmtvann: systemer.varmtvann,
+    avlop: systemer.avlop,
+    varme: systemer.varme,
+    poster,
+    totalLengdeM: totalLengdeM > 0 ? totalLengdeM : undefined,
+  };
+}
+
+/**
+ * Tolker varmeanleggsparametere fra tabeller og nøkkel-verdi linjer:
+ * - Varmekilde (f.eks. Væske-vann varmepumpe, Bergvarme, Fjernvarme)
+ * - Antall radiatorer
+ * - Gulvvarme (m²)
+ * - Tur- og returtemperaturer (°C)
+ * - Effektbehov (kW)
+ */
+export function parseVarmeanlegg(
+  innhold: string,
+  tabeller: string[][][] = []
+): VarmeanleggData | undefined {
+  const tabs = tabeller.length > 0 ? tabeller : parseMarkdownTabeller(innhold);
+  const v: VarmeanleggData = {};
+
+  // Tabell-sjekk
+  for (const tab of tabs) {
+    for (const rad of tab) {
+      if (rad.length < 2) continue;
+      const k = rad[0].toLowerCase().trim();
+      const val = rad[1].trim();
+
+      if (/varmekilde|energikilde|primærvarme/.test(k)) {
+        v.varmekilde = val;
+      } else if (/antall\s*radiatorer|radiatorer/.test(k)) {
+        const n = parseNorskTall(val);
+        if (n !== undefined) v.antallRadiatorer = n;
+      } else if (/gulvvarme/.test(k)) {
+        const n = parseNorskTall(val);
+        if (n !== undefined) v.gulvvarmeM2 = n;
+      } else if (/tur\s*\/\s*retur/.test(k)) {
+        const m = val.match(/(\d+)\s*\/\s*(\d+)/);
+        if (m) {
+          v.turTemperaturC = parseNorskTall(m[1]);
+          v.returTemperaturC = parseNorskTall(m[2]);
+        }
+      } else if (/turtemperatur|turtemp|\btur\b/.test(k)) {
+        const n = parseNorskTall(val);
+        if (n !== undefined) v.turTemperaturC = n;
+      } else if (/returtemperatur|returtemp|\bretur\b/.test(k)) {
+        const n = parseNorskTall(val);
+        if (n !== undefined) v.returTemperaturC = n;
+      } else if (/effektbehov|varmeeffekt|effekt/.test(k)) {
+        const n = parseNorskTall(val);
+        if (n !== undefined) v.effektbehovKw = n;
+      }
+    }
+  }
+
+  // Regex / linje-sjekk for ustrukturerte eller delvis strukturerte felt
+  if (!v.varmekilde) {
+    const vkMatch = innhold.match(/(?:varmekilde|energikilde|primærvarme)\s*[:=–-]\s*([^\n\r|;]{2,60})/i);
+    if (vkMatch) v.varmekilde = vkMatch[1].trim();
+  }
+  if (v.antallRadiatorer === undefined) {
+    const radMatch =
+      innhold.match(/(?:antall\s*radiatorer|antallRadiatorer|radiatorer)\s*[:=–-]?\s*(\d+)/i) ||
+      innhold.match(/(\d+)\s*(?:stk\.?\s*)?radiatorer\b/i);
+    if (radMatch) v.antallRadiatorer = parseNorskTall(radMatch[1]);
+  }
+  if (v.gulvvarmeM2 === undefined) {
+    const gvMatch =
+      innhold.match(/(?:gulvvarme(?:_?m2|m²)?|gulvvarmeareal)\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)/i) ||
+      innhold.match(/gulvvarme\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:m²|m2|kvm)/i);
+    if (gvMatch) v.gulvvarmeM2 = parseNorskTall(gvMatch[1]);
+  }
+  if (v.turTemperaturC === undefined || v.returTemperaturC === undefined) {
+    const trMatch = innhold.match(/(?:tur\s*\/\s*retur|tur\/retur(?:-temperatur)?)\s*[:=–-]?\s*(\d+)\s*\/\s*(\d+)/i);
+    if (trMatch) {
+      if (v.turTemperaturC === undefined) v.turTemperaturC = parseNorskTall(trMatch[1]);
+      if (v.returTemperaturC === undefined) v.returTemperaturC = parseNorskTall(trMatch[2]);
+    }
+  }
+  if (v.turTemperaturC === undefined) {
+    const turMatch = innhold.match(/(?:turtemperatur|tur-temp)\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:°?c)?/i);
+    if (turMatch) v.turTemperaturC = parseNorskTall(turMatch[1]);
+  }
+  if (v.returTemperaturC === undefined) {
+    const returMatch = innhold.match(/(?:returtemperatur|retur-temp)\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:°?c)?/i);
+    if (returMatch) v.returTemperaturC = parseNorskTall(returMatch[1]);
+  }
+  if (v.effektbehovKw === undefined) {
+    const effMatch = innhold.match(
+      /(?:effektbehov|varmeeffekt|effektbehovKw|varmebehov)\s*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:kw)?/i
+    );
+    if (effMatch) v.effektbehovKw = parseNorskTall(effMatch[1]);
+  }
+
+  return Object.keys(v).length > 0 ? v : undefined;
 }
 
 export interface MarkdownSeksjon {
@@ -947,7 +1359,7 @@ export function parseProsjektMarkdown(tekst: string, filNavn = ''): UttrekkResul
       }
     }
 
-    // D. Romoppvarming & Transmisjonstap
+    // D. Romoppvarming, Transmisjonstap & Varmeanlegg
     if (tit.includes('romoppvarming') || tit.includes('varme') || tit.includes('effekt')) {
       const transMatch = innhold.match(
         /(?:transmisjonstap\s+h_t|\bh_t\b|transmisjonstap|spesifikt\s+transmisjonstap)[^:\n\r=-]*[:=–-]?\s*(\d+(?:[,.]\d+)?)\s*(?:w\s*\/\s*k)?/i
@@ -958,6 +1370,15 @@ export function parseProsjektMarkdown(tekst: string, filNavn = ''): UttrekkResul
           res.transmisjonstapWPerK = ht;
           res.tekniskeFunn!.push(`Transmisjonstap H_T: ${ht} W/K`);
         }
+      }
+      const v = parseVarmeanlegg(innhold);
+      if (v) {
+        res.varmeanlegg = { ...res.varmeanlegg, ...v };
+        if (v.varmekilde) res.tekniskeFunn!.push(`Varmekilde: ${v.varmekilde}`);
+        if (v.antallRadiatorer) res.tekniskeFunn!.push(`Radiatorer: ${v.antallRadiatorer} stk`);
+        if (v.gulvvarmeM2) res.tekniskeFunn!.push(`Gulvvarme: ${v.gulvvarmeM2} m²`);
+        if (v.turTemperaturC && v.returTemperaturC) res.tekniskeFunn!.push(`Varmeanlegg tur/retur: ${v.turTemperaturC}/${v.returTemperaturC} °C`);
+        if (v.effektbehovKw) res.tekniskeFunn!.push(`Varme effektbehov: ${v.effektbehovKw} kW`);
       }
     }
 
@@ -990,99 +1411,75 @@ export function parseProsjektMarkdown(tekst: string, filNavn = ''): UttrekkResul
     }
 
     // F. Sanitærutstyr
-    if (tit.includes('sanitær') || tit.includes('forbruksvann') || tit.includes('armatur')) {
-      const tabeller = parseMarkdownTabeller(innhold);
-      const poster: SanitaerUtstyrData = {
-        wc: { antall: 0, qnLPrS: 0.1, du: 2.0 },
-        servant: { antall: 0, qnLPrS: 0.1, du: 0.5 },
-        urinal: { antall: 0, qnLPrS: 0.1, du: 0.5 },
-        dusj: { antall: 0, qnLPrS: 0.2, du: 0.8 },
-        kjokkenvask: { antall: 0, qnLPrS: 0.2, du: 0.8 },
-        oppvaskmaskin: { antall: 0, qnLPrS: 0.2, du: 0.8 },
-        sumQn: 0,
-        sumDu: 0,
-        qsLPrS: 0,
-      };
-
-      for (const tab of tabeller) {
-        if (tab.length < 2) continue;
-        const h = tab[0].map((c) => c.toLowerCase());
-        const antallIdx = h.findIndex((c) => /antall|stk|mengde/.test(c));
-        const qnIdx = h.findIndex((c) => /q_?n|normflom|l\/s/.test(c));
-        const duIdx = h.findIndex((c) => /\bdu\b|design\s*unit|vekt/.test(c));
-
-        const dataRader = tab.slice(1);
-        for (const rad of dataRader) {
-          if (rad.length < 2) continue;
-          const forste = rad[0].toLowerCase();
-          const ant = parseAntallMedParenteser(antallIdx >= 0 && rad[antallIdx] !== undefined ? rad[antallIdx] : rad[1]);
-          const qn = qnIdx >= 0 && rad[qnIdx] !== undefined ? parseNorskTall(rad[qnIdx]) : rad[2] ? parseNorskTall(rad[2]) : undefined;
-          const du = duIdx >= 0 && rad[duIdx] !== undefined ? parseNorskTall(rad[duIdx]) : rad[3] ? parseNorskTall(rad[3]) : undefined;
-
-          if (/wc|toalett|klosett/.test(forste)) {
-            poster.wc.antall = ant;
-            if (qn !== undefined && qn > 0) poster.wc.qnLPrS = qn;
-            if (du !== undefined && du > 0) poster.wc.du = du;
-          } else if (/servant|håndvask/.test(forste)) {
-            poster.servant.antall = ant;
-            if (qn !== undefined && qn > 0) poster.servant.qnLPrS = qn;
-            if (du !== undefined && du > 0) poster.servant.du = du;
-          } else if (/urinal/.test(forste)) {
-            poster.urinal.antall = ant;
-            if (qn !== undefined && qn > 0) poster.urinal.qnLPrS = qn;
-            if (du !== undefined && du > 0) poster.urinal.du = du;
-          } else if (/dusj/.test(forste)) {
-            poster.dusj.antall = ant;
-            if (qn !== undefined && qn > 0) poster.dusj.qnLPrS = qn;
-            if (du !== undefined && du > 0) poster.dusj.du = du;
-          } else if (/kjøkken|kjokken|vaskekum/.test(forste)) {
-            poster.kjokkenvask.antall = ant;
-            if (qn !== undefined && qn > 0) poster.kjokkenvask.qnLPrS = qn;
-            if (du !== undefined && du > 0) poster.kjokkenvask.du = du;
-          } else if (/oppvask/.test(forste)) {
-            poster.oppvaskmaskin.antall = ant;
-            if (qn !== undefined && qn > 0) poster.oppvaskmaskin.qnLPrS = qn;
-            if (du !== undefined && du > 0) poster.oppvaskmaskin.du = du;
-          }
+    if (tit.includes('sanitær') || tit.includes('forbruksvann') || tit.includes('armatur') || tit.includes('sanitaer')) {
+      const poster = parseSanitaerUtstyrTabell(innhold);
+      if (poster) {
+        res.sanitaerUtstyr = poster;
+        res.tekniskeFunn!.push(
+          `Sanitærutstyr: Σ q_n = ${poster.sumQn} l/s, Σ DU = ${poster.sumDu}, q_s = ${poster.qsLPrS} l/s`
+        );
+        const dusjerTotalt = (poster.dusj?.antall || 0) + (poster.badekar?.antall || 0);
+        if (dusjerTotalt > 0 && !res.belastning) {
+          res.belastning = { dusjer: dusjerTotalt, dusjMinutter: 20, dusjLs: 0.2 };
         }
       }
+    }
 
-      poster.sumQn = Math.round((
-        poster.wc.antall * poster.wc.qnLPrS +
-        poster.servant.antall * poster.servant.qnLPrS +
-        poster.urinal.antall * poster.urinal.qnLPrS +
-        poster.dusj.antall * poster.dusj.qnLPrS +
-        poster.kjokkenvask.antall * poster.kjokkenvask.qnLPrS +
-        poster.oppvaskmaskin.antall * poster.oppvaskmaskin.qnLPrS
-      ) * 100) / 100;
-
-      poster.sumDu = Math.round((
-        poster.wc.antall * poster.wc.du +
-        poster.servant.antall * poster.servant.du +
-        poster.urinal.antall * poster.urinal.du +
-        poster.dusj.antall * poster.dusj.du +
-        poster.kjokkenvask.antall * poster.kjokkenvask.du +
-        poster.oppvaskmaskin.antall * poster.oppvaskmaskin.du
-      ) * 10) / 10;
-
-      const qnList = [
-        poster.wc.antall > 0 ? poster.wc.qnLPrS : 0,
-        poster.servant.antall > 0 ? poster.servant.qnLPrS : 0,
-        poster.urinal.antall > 0 ? poster.urinal.qnLPrS : 0,
-        poster.dusj.antall > 0 ? poster.dusj.qnLPrS : 0,
-        poster.kjokkenvask.antall > 0 ? poster.kjokkenvask.qnLPrS : 0,
-        poster.oppvaskmaskin.antall > 0 ? poster.oppvaskmaskin.qnLPrS : 0,
-      ];
-      const maksQn = Math.max(...qnList, 0);
-      poster.qsLPrS = Math.round(beregnQs(poster.sumQn, maksQn) * 100) / 100;
-
-      res.sanitaerUtstyr = poster;
-      res.tekniskeFunn!.push(`Sanitærutstyr: Σ q_n = ${poster.sumQn} l/s, Σ DU = ${poster.sumDu}, q_s = ${poster.qsLPrS} l/s`);
-
-      if (poster.dusj.antall > 0 && !res.belastning) {
-        res.belastning = { dusjer: poster.dusj.antall, dusjMinutter: 20, dusjLs: 0.2 };
+    // G. Rørsystemer
+    if (tit.includes('rør') || tit.includes('ror') || tit.includes('ledningsnett')) {
+      const ror = parseRorSystemer(innhold);
+      if (ror) {
+        res.rorSystemer = ror;
+        res.tekniskeFunn!.push(
+          `Rørsystemer: ${ror.poster.map((p) => `${p.navn}${p.dimensjon ? ` ${p.dimensjon}` : ''}${p.lengdeM ? ` (${p.lengdeM} m)` : ''}`).join(', ')}`
+        );
       }
     }
+
+    // H. Varmeanlegg (egen seksjon hvis til stede)
+    if (tit.includes('varmeanlegg') || tit.includes('varmesentral') || tit.includes('radiator')) {
+      const v = parseVarmeanlegg(innhold);
+      if (v) {
+        res.varmeanlegg = { ...res.varmeanlegg, ...v };
+        if (v.varmekilde) res.tekniskeFunn!.push(`Varmekilde: ${v.varmekilde}`);
+        if (v.antallRadiatorer) res.tekniskeFunn!.push(`Radiatorer: ${v.antallRadiatorer} stk`);
+        if (v.gulvvarmeM2) res.tekniskeFunn!.push(`Gulvvarme: ${v.gulvvarmeM2} m²`);
+        if (v.turTemperaturC && v.returTemperaturC) res.tekniskeFunn!.push(`Varmeanlegg tur/retur: ${v.turTemperaturC}/${v.returTemperaturC} °C`);
+        if (v.effektbehovKw) res.tekniskeFunn!.push(`Varme effektbehov: ${v.effektbehovKw} kW`);
+      }
+    }
+  }
+
+  // Fallback for sanitærutstyr hvis ikke funnet i eksplisitt seksjon
+  if (res.sanitaerUtstyr === undefined) {
+    const posterGen = parseSanitaerUtstyrTabell(tekst);
+    if (posterGen) {
+      res.sanitaerUtstyr = posterGen;
+      res.tekniskeFunn!.push(
+        `Sanitærutstyr: Σ q_n = ${posterGen.sumQn} l/s, Σ DU = ${posterGen.sumDu}, q_s = ${posterGen.qsLPrS} l/s`
+      );
+      const dusjerTotalt = (posterGen.dusj?.antall || 0) + (posterGen.badekar?.antall || 0);
+      if (dusjerTotalt > 0 && !res.belastning) {
+        res.belastning = { dusjer: dusjerTotalt, dusjMinutter: 20, dusjLs: 0.2 };
+      }
+    }
+  }
+
+  // Fallback for rørsystemer hvis ikke funnet i eksplisitt seksjon
+  if (res.rorSystemer === undefined) {
+    const rorGen = parseRorSystemer(tekst);
+    if (rorGen) {
+      res.rorSystemer = rorGen;
+      res.tekniskeFunn!.push(
+        `Rørsystemer: ${rorGen.poster.map((p) => `${p.navn}${p.dimensjon ? ` ${p.dimensjon}` : ''}${p.lengdeM ? ` (${p.lengdeM} m)` : ''}`).join(', ')}`
+      );
+    }
+  }
+
+  // Fallback for varmeanlegg hvis ikke funnet i eksplisitt seksjon
+  const varmeGen = parseVarmeanlegg(tekst);
+  if (varmeGen) {
+    res.varmeanlegg = { ...varmeGen, ...res.varmeanlegg };
   }
 
   // Fallback for BRA hvis ikke funnet under Arealer-seksjonen
@@ -1418,6 +1815,16 @@ export function analyserTekstLokalt(tekst: string, filNavn = ''): UttrekkResulta
     res.tekniskeFunn!.push(`Teknisk rom: ${tekRom} m²`);
   }
 
+  // 14. Varmeanlegg og Rørsystemer i ustrukturert tekst hvis ikke allerede fylt ut
+  if (!res.varmeanlegg) {
+    const v = parseVarmeanlegg(renTekst);
+    if (v) res.varmeanlegg = v;
+  }
+  if (!res.rorSystemer) {
+    const r = parseRorSystemer(renTekst);
+    if (r) res.rorSystemer = r;
+  }
+
   const sluttResultat = mdResultat ? flettUttrekkResultater(res, mdResultat) : res;
   if (sluttResultat.tekniskeFunn!.length > 0) {
     sluttResultat.oppsummering = lagKortFunnTekst(sluttResultat);
@@ -1447,6 +1854,10 @@ export function lagKortFunnTekst(u: UttrekkResultat): string {
   if (u.uVerdier?.vinduDor !== undefined) deler.push(`U-vindu: ${u.uVerdier.vinduDor}`);
   if (u.uVerdier?.n50 !== undefined) deler.push(`n50: ${u.uVerdier.n50} 1/h`);
   if (u.transmisjonstapWPerK !== undefined) deler.push(`transmisjonstap: ${u.transmisjonstapWPerK} W/K`);
+  if (u.varmeanlegg?.varmekilde) deler.push(`varmekilde: ${u.varmeanlegg.varmekilde}`);
+  if (u.varmeanlegg?.antallRadiatorer !== undefined) deler.push(`radiatorer: ${u.varmeanlegg.antallRadiatorer} stk`);
+  if (u.varmeanlegg?.gulvvarmeM2 !== undefined) deler.push(`gulvvarme: ${u.varmeanlegg.gulvvarmeM2} m²`);
+  if (u.rorSystemer?.poster && u.rorSystemer.poster.length > 0) deler.push(`rørsystemer: ${u.rorSystemer.poster.length} kurser`);
   if (u.sanitaerUtstyr?.qsLPrS !== undefined) deler.push(`sanitær q_s: ${u.sanitaerUtstyr.qsLPrS.toFixed(2)} l/s`);
   if (u.ventilasjon?.personbelastning !== undefined) deler.push(`ventilasjon: ${u.ventilasjon.personbelastning} pers`);
   if (u.eksaktNavnFraTekst && u.navn && u.navn !== u.sted) {
@@ -1531,6 +1942,19 @@ export function flettUttrekkResultater(
         : undefined,
     klimaskjerm: undefined,
     sanitaerUtstyr: ai.sanitaerUtstyr ?? lokal.sanitaerUtstyr,
+    rorSystemer: ai.rorSystemer ?? lokal.rorSystemer,
+    varmeanlegg:
+      ai.varmeanlegg || lokal.varmeanlegg
+        ? {
+            varmekilde: ai.varmeanlegg?.varmekilde ?? lokal.varmeanlegg?.varmekilde,
+            antallRadiatorer: ai.varmeanlegg?.antallRadiatorer ?? lokal.varmeanlegg?.antallRadiatorer,
+            gulvvarmeM2: ai.varmeanlegg?.gulvvarmeM2 ?? lokal.varmeanlegg?.gulvvarmeM2,
+            turTemperaturC: ai.varmeanlegg?.turTemperaturC ?? lokal.varmeanlegg?.turTemperaturC,
+            returTemperaturC: ai.varmeanlegg?.returTemperaturC ?? lokal.varmeanlegg?.returTemperaturC,
+            effektbehovKw: ai.varmeanlegg?.effektbehovKw ?? lokal.varmeanlegg?.effektbehovKw,
+            systemType: ai.varmeanlegg?.systemType ?? lokal.varmeanlegg?.systemType,
+          }
+        : undefined,
     ventilasjon:
       ai.ventilasjon || lokal.ventilasjon
         ? {
@@ -1612,6 +2036,8 @@ export function harUttrekkData(u: UttrekkResultat | null | undefined): boolean {
       u.uVerdier !== undefined ||
       u.klimaskjerm !== undefined ||
       u.sanitaerUtstyr !== undefined ||
+      u.rorSystemer !== undefined ||
+      u.varmeanlegg !== undefined ||
       u.ventilasjon !== undefined ||
       u.transmisjonstapWPerK !== undefined ||
       u.tekniskRomM2 !== undefined ||
@@ -1656,6 +2082,13 @@ export function beskrivUttrekkEndringer(u: UttrekkResultat): string[] {
   if (u.sanitaerUtstyr) {
     liste.push(`Sanitærutstyr registrert (Σ q_n = ${u.sanitaerUtstyr.sumQn.toFixed(1)} l/s, Σ DU = ${u.sanitaerUtstyr.sumDu.toFixed(1)}, q_s = ${u.sanitaerUtstyr.qsLPrS.toFixed(2)} l/s)`);
   }
+  if (u.rorSystemer?.poster && u.rorSystemer.poster.length > 0) {
+    liste.push(`Rørsystemer registrert (${u.rorSystemer.poster.length} kurser: ${u.rorSystemer.poster.map((p) => p.navn).join(', ')})`);
+  }
+  if (u.varmeanlegg?.varmekilde) liste.push(`Varmekilde registrert som «${u.varmeanlegg.varmekilde}»`);
+  if (u.varmeanlegg?.antallRadiatorer !== undefined) liste.push(`Antall radiatorer satt til ${u.varmeanlegg.antallRadiatorer} stk`);
+  if (u.varmeanlegg?.gulvvarmeM2 !== undefined) liste.push(`Gulvvarme satt til ${u.varmeanlegg.gulvvarmeM2} m²`);
+  if (u.varmeanlegg?.effektbehovKw !== undefined) liste.push(`Varme effektbehov satt til ${u.varmeanlegg.effektbehovKw} kW`);
   if (u.ventilasjon?.personbelastning !== undefined) liste.push(`Ventilasjon personbelastning satt til ${u.ventilasjon.personbelastning} personer`);
   if (u.ventilasjon?.sfpKrav !== undefined) liste.push(`Ventilasjon SFP-krav satt til ${u.ventilasjon.sfpKrav} kW/(m³/s)`);
   if (u.koter?.gate !== undefined) liste.push(`Terrengkote satt til C +${u.koter.gate} moh`);
@@ -1764,6 +2197,19 @@ export function flettUttrekkInnIProsjekt(
         : base.uVerdier,
     klimaskjerm: undefined,
     sanitaerUtstyr: u.sanitaerUtstyr ?? base.sanitaerUtstyr,
+    rorSystemer: u.rorSystemer ?? base.rorSystemer,
+    varmeanlegg:
+      u.varmeanlegg || base.varmeanlegg
+        ? {
+            varmekilde: u.varmeanlegg?.varmekilde ?? base.varmeanlegg?.varmekilde,
+            antallRadiatorer: u.varmeanlegg?.antallRadiatorer ?? base.varmeanlegg?.antallRadiatorer,
+            gulvvarmeM2: u.varmeanlegg?.gulvvarmeM2 ?? base.varmeanlegg?.gulvvarmeM2,
+            turTemperaturC: u.varmeanlegg?.turTemperaturC ?? base.varmeanlegg?.turTemperaturC,
+            returTemperaturC: u.varmeanlegg?.returTemperaturC ?? base.varmeanlegg?.returTemperaturC,
+            effektbehovKw: u.varmeanlegg?.effektbehovKw ?? base.varmeanlegg?.effektbehovKw,
+            systemType: u.varmeanlegg?.systemType ?? base.varmeanlegg?.systemType,
+          }
+        : base.varmeanlegg,
     ventilasjon:
       u.ventilasjon || base.ventilasjon
         ? {
@@ -1817,7 +2263,13 @@ export function flettUttrekkInnIProsjekt(
             : '',
           u.transmisjonstapWPerK ? `Transmisjonstap Σ(U·A): ${u.transmisjonstapWPerK} W/K` : '',
           u.sanitaerUtstyr
-            ? `Sanitærutstyr: WC ${u.sanitaerUtstyr.wc.antall}, Servant ${u.sanitaerUtstyr.servant.antall}, Urinal ${u.sanitaerUtstyr.urinal.antall}, Dusj ${u.sanitaerUtstyr.dusj.antall}, Kjøkken ${u.sanitaerUtstyr.kjokkenvask.antall}, Oppvask ${u.sanitaerUtstyr.oppvaskmaskin.antall}. Sum q_n = ${u.sanitaerUtstyr.sumQn} l/s, Sum DU = ${u.sanitaerUtstyr.sumDu}, q_s = ${u.sanitaerUtstyr.qsLPrS} l/s`
+            ? `Sanitærutstyr: WC ${u.sanitaerUtstyr.wc.antall}, Servant ${u.sanitaerUtstyr.servant.antall}, Urinal ${u.sanitaerUtstyr.urinal.antall}, Dusj ${u.sanitaerUtstyr.dusj.antall}, Kjøkken ${u.sanitaerUtstyr.kjokkenvask.antall}, Oppvask ${u.sanitaerUtstyr.oppvaskmaskin.antall}${u.sanitaerUtstyr.badekar?.antall ? `, Badekar ${u.sanitaerUtstyr.badekar.antall}` : ''}${u.sanitaerUtstyr.vaskemaskin?.antall ? `, Vaskemaskin ${u.sanitaerUtstyr.vaskemaskin.antall}` : ''}${u.sanitaerUtstyr.utslagsvask?.antall ? `, Utslagsvask ${u.sanitaerUtstyr.utslagsvask.antall}` : ''}. Sum q_n = ${u.sanitaerUtstyr.sumQn} l/s, Sum DU = ${u.sanitaerUtstyr.sumDu}, q_s = ${u.sanitaerUtstyr.qsLPrS} l/s`
+            : '',
+          u.rorSystemer?.poster && u.rorSystemer.poster.length > 0
+            ? `Rørsystemer: ${u.rorSystemer.poster.map((p) => `${p.navn}${p.dimensjon ? ` ${p.dimensjon}` : ''}${p.lengdeM ? ` (${p.lengdeM} m${p.materiale ? `, ${p.materiale}` : ''})` : ''}`).join(' · ')}`
+            : '',
+          u.varmeanlegg
+            ? `Varmeanlegg: Varmekilde ${u.varmeanlegg.varmekilde ?? '-'}${u.varmeanlegg.antallRadiatorer !== undefined ? `, Radiatorer ${u.varmeanlegg.antallRadiatorer} stk` : ''}${u.varmeanlegg.gulvvarmeM2 !== undefined ? `, Gulvvarme ${u.varmeanlegg.gulvvarmeM2} m²` : ''}${u.varmeanlegg.turTemperaturC && u.varmeanlegg.returTemperaturC ? `, Tur/retur ${u.varmeanlegg.turTemperaturC}/${u.varmeanlegg.returTemperaturC} °C` : ''}${u.varmeanlegg.effektbehovKw ? `, Effekt ${u.varmeanlegg.effektbehovKw} kW` : ''}`
             : '',
           u.ventilasjon
             ? `Ventilasjon: Personbelastning ${u.ventilasjon.personbelastning ?? '-'} personer, SFP-krav ${u.ventilasjon.sfpKrav ?? '-'} kW/(m³/s)${u.ventilasjon.luftmengdeM3h ? `, Luftmengde ${u.ventilasjon.luftmengdeM3h} m³/h` : ''}`

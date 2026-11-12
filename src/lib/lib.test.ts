@@ -16,6 +16,9 @@ import {
   parseAntallMedParenteser,
   parseMarkdownTabeller,
   parseProsjektMarkdown,
+  parseRorSystemer,
+  parseSanitaerUtstyrTabell,
+  parseVarmeanlegg,
   trekkUtBra,
   trekkUtLesbarTekstFraPdfBuffer,
   trekkUtUVerdierOgTransmisjonstap,
@@ -1396,6 +1399,161 @@ Luftlekkasjetall n50: 0.6 1/h
         expect(oppdatert.notater).toContain('Klimadata: DUT -20 °C, Innetemperatur 21 °C');
         expect(oppdatert.notater).toContain('Sanitærutstyr: WC 20');
         expect(oppdatert.notater).toContain('q_s = 0.73 l/s');
+      });
+
+      it('støtter synonymer for nøkkeltall: arealM2 fanges opp og velger største verdi over gulvvarmeM2', () => {
+        const tekstMedSynonymer = `
+# Granstubben Næringsbygg
+arealM2: 240
+gulvvarmeM2 = 25
+Varmekilde: Bergvarme
+antall Radiatorer: 14
+`;
+        const braResultat = trekkUtBra(tekstMedSynonymer);
+        expect(braResultat.bra).toBe(240);
+
+        const uttrekk = parseProsjektMarkdown(tekstMedSynonymer);
+        expect(uttrekk.bra).toBe(240);
+        expect(uttrekk.varmeanlegg?.gulvvarmeM2).toBe(25);
+        expect(uttrekk.varmeanlegg?.varmekilde).toBe('Bergvarme');
+        expect(uttrekk.varmeanlegg?.antallRadiatorer).toBe(14);
+      });
+
+      it('tolker tabell for Sanitærutstyr med kolonner Type og Antall for alle 8 armaturer', () => {
+        const sanitaerDokument = `
+# Strandveien Bolig
+## 7. Sanitærutstyr
+| Type | Antall |
+| :--- | :--- |
+| Toalett | 3 |
+| Servant/vask | 2 |
+| Dusj | 1 |
+| Badekar | 1 |
+| Kjøkkenvask | 1 |
+| Oppvaskmaskin | 1 |
+| Vaskemaskin | 1 |
+| Utslagsvask | 1 |
+`;
+        const res = parseProsjektMarkdown(sanitaerDokument);
+        expect(res.sanitaerUtstyr).toBeDefined();
+        const s = res.sanitaerUtstyr!;
+
+        expect(s.wc.antall).toBe(3);
+        expect(s.servant.antall).toBe(2);
+        expect(s.dusj.antall).toBe(1);
+        expect(s.badekar?.antall).toBe(1);
+        expect(s.kjokkenvask.antall).toBe(1);
+        expect(s.oppvaskmaskin.antall).toBe(1);
+        expect(s.vaskemaskin?.antall).toBe(1);
+        expect(s.utslagsvask?.antall).toBe(1);
+
+        // Sum q_n = 3*0.1 + 2*0.1 + 1*0.2 + 1*0.3 + 1*0.2 + 1*0.2 + 1*0.2 + 1*0.2 = 1.8 l/s
+        expect(s.sumQn).toBe(1.8);
+        // Sum DU = 3*2.0 + 2*0.5 + 1*0.8 + 1*0.8 + 1*0.8 + 1*0.8 + 1*0.8 + 1*0.8 = 11.8
+        expect(s.sumDu).toBe(11.8);
+        // q_s beregnet med største q_n1 = 0.3 l/s (badekar) -> 0.53 l/s
+        expect(s.qsLPrS).toBe(0.53);
+
+        // Belastning dusjer (dusj 1 + badekar 1 = 2)
+        expect(res.belastning?.dusjer).toBe(2);
+      });
+
+      it('henter ut tabeller for Rørsystemer og Varmeanlegg automatisk inn i state', () => {
+        const anleggDokument = `
+# Luramyr Logistikksenter
+arealM2: 850
+
+## Rørsystemer
+| System | Dimensjon | Lengde (m) | Materiale |
+| :--- | :--- | :--- | :--- |
+| Kaldtvann | DN 28 | 45 | Kobber (Cu) |
+| Varmtvann | DN 22 | 40 | Kobber (Cu) |
+| Avløp | DN 110 | 65 | PP plast |
+| Varme | DN 32 | 80 | Stål |
+
+## Varmeanlegg
+| Parameter | Verdi |
+| :--- | :--- |
+| Varmekilde | Væske-vann varmepumpe (bergvarme) |
+| Antall radiatorer | 18 |
+| Gulvvarme | 25 m² |
+| Tur/retur | 55/45 °C |
+| Effektbehov | 32 kW |
+`;
+        const res = parseProsjektMarkdown(anleggDokument);
+
+        // Rørsystemer
+        expect(res.rorSystemer).toBeDefined();
+        expect(res.rorSystemer?.kaldtvann?.dimensjon).toBe('DN 28');
+        expect(res.rorSystemer?.kaldtvann?.lengdeM).toBe(45);
+        expect(res.rorSystemer?.kaldtvann?.materiale).toBe('Kobber (Cu)');
+
+        expect(res.rorSystemer?.varmtvann?.dimensjon).toBe('DN 22');
+        expect(res.rorSystemer?.varmtvann?.lengdeM).toBe(40);
+
+        expect(res.rorSystemer?.avlop?.dimensjon).toBe('DN 110');
+        expect(res.rorSystemer?.avlop?.lengdeM).toBe(65);
+
+        expect(res.rorSystemer?.varme?.dimensjon).toBe('DN 32');
+        expect(res.rorSystemer?.varme?.lengdeM).toBe(80);
+        expect(res.rorSystemer?.totalLengdeM).toBe(230);
+
+        // Varmeanlegg
+        expect(res.varmeanlegg).toBeDefined();
+        expect(res.varmeanlegg?.varmekilde).toBe('Væske-vann varmepumpe (bergvarme)');
+        expect(res.varmeanlegg?.antallRadiatorer).toBe(18);
+        expect(res.varmeanlegg?.gulvvarmeM2).toBe(25);
+        expect(res.varmeanlegg?.turTemperaturC).toBe(55);
+        expect(res.varmeanlegg?.returTemperaturC).toBe(45);
+        expect(res.varmeanlegg?.effektbehovKw).toBe(32);
+
+        // Integrasjon inn i prosjekt-state via flettUttrekkInnIProsjekt
+        const base = tomtProsjekt('lura-test');
+        const oppdatert = flettUttrekkInnIProsjekt(base, res);
+        expect(oppdatert.bra).toBe(850);
+        expect(oppdatert.rorSystemer?.totalLengdeM).toBe(230);
+        expect(oppdatert.varmeanlegg?.varmekilde).toBe('Væske-vann varmepumpe (bergvarme)');
+        expect(oppdatert.varmeanlegg?.antallRadiatorer).toBe(18);
+        expect(oppdatert.notater).toContain('Rørsystemer: Kaldtvann DN 28');
+        expect(oppdatert.notater).toContain('Varmeanlegg: Varmekilde Væske-vann varmepumpe (bergvarme)');
+      });
+
+      it('parseSanitaerUtstyrTabell, parseRorSystemer og parseVarmeanlegg fungerer som isolerte hjelpefunksjoner', () => {
+        // Sanitaer
+        const sanResultat = parseSanitaerUtstyrTabell(`
+| Type | Antall |
+| Toalett | 4 |
+| Dusj | 2 |
+| Badekar | 1 |
+`);
+        expect(sanResultat?.wc.antall).toBe(4);
+        expect(sanResultat?.dusj.antall).toBe(2);
+        expect(sanResultat?.badekar?.antall).toBe(1);
+
+        // Rørsystemer
+        const rorResultat = parseRorSystemer(`
+- Kaldtvann: DN 28, 50 m, Kobber
+- Varmtvann: DN 22, 35 m, Kobber
+`);
+        expect(rorResultat?.kaldtvann?.dimensjon).toBe('DN 28');
+        expect(rorResultat?.kaldtvann?.lengdeM).toBe(50);
+        expect(rorResultat?.varmtvann?.dimensjon).toBe('DN 22');
+        expect(rorResultat?.totalLengdeM).toBe(85);
+
+        // Varmeanlegg
+        const varmeResultat = parseVarmeanlegg(`
+Varmekilde: Fjernvarme
+antall Radiatorer: 12
+gulvvarmeM2 = 40
+tur/retur: 60/40
+effektbehov: 28 kW
+`);
+        expect(varmeResultat?.varmekilde).toBe('Fjernvarme');
+        expect(varmeResultat?.antallRadiatorer).toBe(12);
+        expect(varmeResultat?.gulvvarmeM2).toBe(40);
+        expect(varmeResultat?.turTemperaturC).toBe(60);
+        expect(varmeResultat?.returTemperaturC).toBe(40);
+        expect(varmeResultat?.effektbehovKw).toBe(28);
       });
     });
   });

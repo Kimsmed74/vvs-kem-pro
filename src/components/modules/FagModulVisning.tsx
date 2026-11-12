@@ -824,6 +824,42 @@ export default function FagModulVisning({
                 }}
               />
 
+              {prosjekt.varmeanlegg && (
+                <div className="rounded-xl border border-rose-600/40 bg-rose-950/20 p-4 text-xs text-rose-200">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rose-800/40 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🔥</span>
+                      <div>
+                        <span className="font-bold text-slate-100">Registrert varmeanlegg fra prosjektdokument</span>
+                        <span className="ml-2 text-[11px] text-rose-300">(NS-EN 12828 / TEK17)</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5 text-[11px]">
+                    <div className="rounded border border-rose-800/30 bg-slate-900/60 p-2">
+                      <div className="text-slate-400">Varmekilde</div>
+                      <div className="font-semibold text-slate-100">{prosjekt.varmeanlegg.varmekilde || 'Ikke oppgitt'}</div>
+                    </div>
+                    <div className="rounded border border-rose-800/30 bg-slate-900/60 p-2">
+                      <div className="text-slate-400">Radiatorer</div>
+                      <div className="font-mono text-sm font-semibold text-slate-100">{prosjekt.varmeanlegg.antallRadiatorer !== undefined ? `${prosjekt.varmeanlegg.antallRadiatorer} stk` : '-'}</div>
+                    </div>
+                    <div className="rounded border border-rose-800/30 bg-slate-900/60 p-2">
+                      <div className="text-slate-400">Gulvvarme</div>
+                      <div className="font-mono text-sm font-semibold text-slate-100">{prosjekt.varmeanlegg.gulvvarmeM2 !== undefined ? `${prosjekt.varmeanlegg.gulvvarmeM2} m²` : '-'}</div>
+                    </div>
+                    <div className="rounded border border-rose-800/30 bg-slate-900/60 p-2">
+                      <div className="text-slate-400">Tur / retur</div>
+                      <div className="font-mono text-sm font-semibold text-slate-100">{prosjekt.varmeanlegg.turTemperaturC && prosjekt.varmeanlegg.returTemperaturC ? `${prosjekt.varmeanlegg.turTemperaturC} / ${prosjekt.varmeanlegg.returTemperaturC} °C` : '-'}</div>
+                    </div>
+                    <div className="rounded border border-rose-800/30 bg-slate-900/60 p-2">
+                      <div className="text-slate-400">Effektbehov</div>
+                      <div className="font-mono text-sm font-semibold text-slate-100">{prosjekt.varmeanlegg.effektbehovKw !== undefined ? `${prosjekt.varmeanlegg.effektbehovKw} kW` : '-'}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-6 lg:grid-cols-12">
                 <Kort
                   tittel="Trykkholding & Ekspansjonskar (Pneumatex Statico / Compresso)"

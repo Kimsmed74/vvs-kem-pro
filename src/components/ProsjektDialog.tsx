@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { BYGNINGSTYPER, type ProsjektData } from '../data/prosjekter';
 import {
   analyserTekstLokalt,
+  flettUttrekkInnIProsjekt,
   flettUttrekkResultater,
   harUttrekkData,
   lagKortFunnTekst,
@@ -249,10 +250,22 @@ export function flettUttrekkInnISkjema(prev: Skjema, u: UttrekkResultat): Skjema
     notater: [
       prev.notater,
       u.oppsummering,
+      u.klima
+        ? `Klimadata: DUT ${u.klima.dutVinter ?? '-'} °C, Innetemperatur ${u.klima.innetemperatur ?? '-'} °C`
+        : '',
       u.uVerdier
         ? `Bygningsfysikk / U-verdier: yttervegg ${u.uVerdier.yttervegg ?? '-'} W/m²K, tak ${u.uVerdier.tak ?? '-'} W/m²K, gulv ${u.uVerdier.gulv ?? '-'} W/m²K, vindu/dør ${u.uVerdier.vinduDor ?? '-'} W/m²K`
         : '',
       u.transmisjonstapWPerK ? `Transmisjonstap Σ(U·A): ${u.transmisjonstapWPerK} W/K` : '',
+      u.sanitaerUtstyr
+        ? `Sanitærutstyr: WC ${u.sanitaerUtstyr.wc.antall}, Servant ${u.sanitaerUtstyr.servant.antall}, Urinal ${u.sanitaerUtstyr.urinal.antall}, Dusj ${u.sanitaerUtstyr.dusj.antall}, Kjøkken ${u.sanitaerUtstyr.kjokkenvask.antall}, Oppvask ${u.sanitaerUtstyr.oppvaskmaskin.antall}${u.sanitaerUtstyr.badekar?.antall ? `, Badekar ${u.sanitaerUtstyr.badekar.antall}` : ''}${u.sanitaerUtstyr.vaskemaskin?.antall ? `, Vaskemaskin ${u.sanitaerUtstyr.vaskemaskin.antall}` : ''}${u.sanitaerUtstyr.utslagsvask?.antall ? `, Utslagsvask ${u.sanitaerUtstyr.utslagsvask.antall}` : ''}. Sum q_n = ${u.sanitaerUtstyr.sumQn} l/s, Sum DU = ${u.sanitaerUtstyr.sumDu}, q_s = ${u.sanitaerUtstyr.qsLPrS} l/s`
+        : '',
+      u.rorSystemer?.poster && u.rorSystemer.poster.length > 0
+        ? `Rørsystemer: ${u.rorSystemer.poster.map((p) => `${p.navn}${p.dimensjon ? ` ${p.dimensjon}` : ''}${p.lengdeM ? ` (${p.lengdeM} m)` : ''}`).join(' · ')}`
+        : '',
+      u.varmeanlegg
+        ? `Varmeanlegg: Varmekilde ${u.varmeanlegg.varmekilde ?? '-'}${u.varmeanlegg.antallRadiatorer !== undefined ? `, Radiatorer ${u.varmeanlegg.antallRadiatorer} stk` : ''}${u.varmeanlegg.gulvvarmeM2 !== undefined ? `, Gulvvarme ${u.varmeanlegg.gulvvarmeM2} m²` : ''}`
+        : '',
     ]
       .filter(Boolean)
       .join('\n\n'),
@@ -276,6 +289,7 @@ export default function ProsjektDialog({
   onFilerLastetOpp?: (nye: ProsjektFil[]) => void;
   onSlettProsjekt?: () => void;
 }) {
+  const [prosjektBase, setProsjektBase] = useState<ProsjektData>(start);
   const [f, setF] = useState<Skjema>(() => tilSkjema(start));
   const [feil, setFeil] = useState<string[]>([]);
   const [opplastetInfo, setOpplastetInfo] = useState<string | null>(null);
@@ -344,6 +358,7 @@ export default function ProsjektDialog({
       if (onFilerLastetOpp) onFilerLastetOpp(nye);
 
       let uttrekk = analyserTekstLokalt(tekster.join('\n\n'), arr[0]?.name ?? '');
+      setProsjektBase((prev) => flettUttrekkInnIProsjekt(prev, uttrekk, false));
       setF((prev) => flettUttrekkInnISkjema(prev, uttrekk));
       setOpplastetInfo(lagKortFunnTekst(uttrekk));
 
@@ -357,6 +372,7 @@ export default function ProsjektDialog({
           });
           if (harUttrekkData(aiUttrekk)) {
             uttrekk = flettUttrekkResultater(uttrekk, aiUttrekk);
+            setProsjektBase((prev) => flettUttrekkInnIProsjekt(prev, uttrekk, false));
             setF((prev) => flettUttrekkInnISkjema(prev, uttrekk));
             setOpplastetInfo(lagKortFunnTekst(uttrekk));
           }
@@ -374,7 +390,7 @@ export default function ProsjektDialog({
   };
 
   const lagre = () => {
-    const r = fraSkjema(f, start);
+    const r = fraSkjema(f, prosjektBase);
     if (r.prosjekt) onLagre(r.prosjekt);
     else setFeil(r.feil);
   };

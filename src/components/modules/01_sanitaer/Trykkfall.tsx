@@ -308,7 +308,7 @@ export default function Trykkfall({
               </span>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6 text-[11px]">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-9 text-[11px]">
             <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
               <div className="text-slate-400">WC (0.1 l/s)</div>
               <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.wc.antall} stk</div>
@@ -330,10 +330,42 @@ export default function Trykkfall({
               <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.kjokkenvask.antall} stk</div>
             </div>
             <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
-              <div className="text-slate-400">Oppvaskmaskin (0.2 l/s)</div>
+              <div className="text-slate-400">Oppvask (0.2 l/s)</div>
               <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.oppvaskmaskin.antall} stk</div>
             </div>
+            {prosjektData.sanitaerUtstyr.badekar !== undefined && (
+              <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+                <div className="text-slate-400">Badekar (0.3 l/s)</div>
+                <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.badekar.antall} stk</div>
+              </div>
+            )}
+            {prosjektData.sanitaerUtstyr.vaskemaskin !== undefined && (
+              <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+                <div className="text-slate-400">Vaskemaskin (0.2 l/s)</div>
+                <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.vaskemaskin.antall} stk</div>
+              </div>
+            )}
+            {prosjektData.sanitaerUtstyr.utslagsvask !== undefined && (
+              <div className="rounded border border-sky-800/30 bg-slate-900/60 p-2">
+                <div className="text-slate-400">Utslagsvask (0.2 l/s)</div>
+                <div className="font-mono text-sm font-semibold text-slate-100">{prosjektData.sanitaerUtstyr.utslagsvask.antall} stk</div>
+              </div>
+            )}
           </div>
+          {prosjektData.rorSystemer?.poster && prosjektData.rorSystemer.poster.length > 0 && (
+            <div className="mt-3 border-t border-sky-800/40 pt-2 text-[11px]">
+              <div className="font-semibold text-sky-200">Rørsystemer registrert fra prosjektunderlag:</div>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {prosjektData.rorSystemer.poster.map((r, i) => (
+                  <span key={i} className="rounded bg-sky-900/60 px-2 py-0.5 text-slate-200">
+                    <strong className="text-sky-300">{r.navn}:</strong> {r.dimensjon || 'Uoppgitt dim'}
+                    {r.lengdeM ? ` · ${r.lengdeM} m` : ''}
+                    {r.materiale ? ` · ${r.materiale}` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

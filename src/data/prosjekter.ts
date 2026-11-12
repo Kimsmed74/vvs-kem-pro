@@ -72,10 +72,52 @@ export interface SanitaerUtstyrData {
   dusj: SanitaerUtstyrPost;
   kjokkenvask: SanitaerUtstyrPost;
   oppvaskmaskin: SanitaerUtstyrPost;
+  badekar?: SanitaerUtstyrPost;
+  vaskemaskin?: SanitaerUtstyrPost;
+  utslagsvask?: SanitaerUtstyrPost;
   andre?: Record<string, SanitaerUtstyrPost>;
   sumQn: number;
   sumDu: number;
   qsLPrS: number;
+}
+
+export interface RorSystemPost {
+  /** Kurs/systemnavn, f.eks. 'kaldtvann', 'varmtvann', 'avlop', 'varme' */
+  system: string;
+  /** Visningsnavn, f.eks. 'Kaldtvann', 'Varmtvann', 'Avløp', 'Varme' */
+  navn: string;
+  /** Dimensjon, f.eks. 'DN 28', '28 mm', '110 mm', 'DN 110' */
+  dimensjon?: string;
+  /** Lengde i meter [m] */
+  lengdeM?: number;
+  /** Rørmateriale, f.eks. 'Kobber (Cu)', 'PP plast', 'PEX', 'Stål' */
+  materiale?: string;
+}
+
+export interface RorSystemerData {
+  kaldtvann?: RorSystemPost;
+  varmtvann?: RorSystemPost;
+  avlop?: RorSystemPost;
+  varme?: RorSystemPost;
+  poster: RorSystemPost[];
+  totalLengdeM?: number;
+}
+
+export interface VarmeanleggData {
+  /** Varmekilde, f.eks. 'Væske-vann varmepumpe (bergvarme)', 'Fjernvarme', 'El-kjel' */
+  varmekilde?: string;
+  /** Antall radiatorer registrert */
+  antallRadiatorer?: number;
+  /** Areal avsatt til gulvvarme [m²] */
+  gulvvarmeM2?: number;
+  /** Turtemperatur [°C] */
+  turTemperaturC?: number;
+  /** Returtemperatur [°C] */
+  returTemperaturC?: number;
+  /** Effektbehov for romoppvarming [kW] */
+  effektbehovKw?: number;
+  /** Systemtype, f.eks. 'Vannbåren varme', 'Lavtemperatur' */
+  systemType?: string;
 }
 
 export interface VentilasjonKravData {
@@ -110,6 +152,10 @@ export interface ProsjektData {
   klimaskjerm?: UVerdierData;
   /** Sanitærutstyrsposter, sum q_n og sum DU */
   sanitaerUtstyr?: SanitaerUtstyrData;
+  /** Rørsystemer (kaldtvann, varmtvann, avløp, varme) registrert fra underlag */
+  rorSystemer?: RorSystemerData;
+  /** Varmeanlegg (varmekilde, radiatorer, gulvvarme, tur/retur, effekt) registrert fra underlag */
+  varmeanlegg?: VarmeanleggData;
   /** Ventilasjonskrav (personbelastning, SFP) */
   ventilasjon?: VentilasjonKravData;
   /** Totalt eller spesifikt transmisjonstap H_T [W/K] */
@@ -177,6 +223,8 @@ export function tomtProsjekt(id: string): ProsjektData {
     uVerdier: undefined,
     klimaskjerm: undefined,
     sanitaerUtstyr: undefined,
+    rorSystemer: undefined,
+    varmeanlegg: undefined,
     ventilasjon: undefined,
     transmisjonstapWPerK: null,
     koter: { gate: null, ibrKum: null, itrKum: null, vannledning: null, stikkLengde: null, fallNevner: 60, gulv: [] },
