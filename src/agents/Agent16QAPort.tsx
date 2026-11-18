@@ -1,5 +1,6 @@
 import type { ProsjektData } from '../data/prosjekter';
 import GatekeeperPanel from '../components/GatekeeperPanel';
+import AhlsellOrderQA from '../components/AhlsellOrderQA';
 import { Kort, Knapp } from '../components/common/ui';
 import type { ProsjektAnalyse } from '../lib/analyse';
 import { BEREDER_ANTAGELSER } from '../lib/analyse';
@@ -29,6 +30,7 @@ interface Props {
   melding: (tekst: string) => void;
   onGaaTilAgent?: (agentId: string) => void;
   onApneChat?: (agentId: string) => void;
+  onApneOrdreQA?: () => void;
 }
 
 export default function Agent16QAPort({
@@ -44,6 +46,7 @@ export default function Agent16QAPort({
   melding,
   onGaaTilAgent,
   onApneChat,
+  onApneOrdreQA,
 }: Props) {
   const fullfortAntall = QA_PUNKTER.filter((p) => qa[p.id]).length;
   const signaturStatus = beregnSignaturStatus(qa);
@@ -91,6 +94,11 @@ export default function Agent16QAPort({
             {onGaaTilAgent && (
               <Knapp variant="sekundar" onClick={() => onGaaTilAgent('agent-19')}>
                 🚜 Koter (Agent 19)
+              </Knapp>
+            )}
+            {onApneOrdreQA && (
+              <Knapp variant="primar" onClick={onApneOrdreQA}>
+                📦 Mengdeuttak &amp; ERP
               </Knapp>
             )}
             <Knapp variant="sekundar" onClick={kopierQARapport}>
@@ -438,6 +446,17 @@ export default function Agent16QAPort({
           </div>
         </div>
       </Kort>
+
+      {/* Vareuttak, Timeverk & ERP-Kalkyle */}
+      <AhlsellOrderQA
+        prosjekt={prosjekt}
+        onApproveToPdf={(items, sum) => {
+          melding(
+            `📄 A4 Tilbuds-PDF generert for ${items.length} poster med sum ${sum.toLocaleString('no-NO')} kr eks. mva!`
+          );
+        }}
+        melding={melding}
+      />
 
       {/* Gatekeeper Sluttkontroll & AI-Kommunikasjonsassistent */}
       {onOppdaterProsjektOgOverstyringer && (

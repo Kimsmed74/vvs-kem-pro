@@ -47,7 +47,7 @@ import {
   type KalkulatorTilstand,
   type OverstyringInfo,
 } from './lib/lagring';
-
+const AhlsellOrderQA = lazy(() => import('./components/AhlsellOrderQA'));
 const Sanitaer = lazy(() => import('./components/modules/01_sanitaer'));
 const FagModulVisning = lazy(() => import('./components/modules/FagModulVisning'));
 const AgentHub = lazy(() => import('./agents/AgentHub'));
@@ -74,7 +74,8 @@ type HovedVisning =
   | { type: 'agent_hub' }
   | { type: 'agent_view'; agentId: string }
   | { type: 'super_kommandoer' }
-  | { type: 'qa_port' };
+  | { type: 'qa_port' }
+  | { type: 'qa_ordre' };
 
 type ProsjektModalModus =
   | { modus: 'nytt'; start: ProsjektData }
@@ -714,6 +715,12 @@ function AppInnhold() {
         >
           🛡️ Agent 16: Djevelens Advokat (QA)
         </NavKnapp>
+        <NavKnapp
+          aktiv={visning.type === 'qa_ordre'}
+          onClick={() => setVisning({ type: 'qa_ordre' })}
+        >
+          📦 Vareuttak & ERP (Ahlsell/Tripletex)
+        </NavKnapp>
 
         {/* Underliste av Agenter */}
         <div className="pt-2">
@@ -1309,6 +1316,19 @@ function AppInnhold() {
               melding={melding}
               onGaaTilAgent={(agentId) => setVisning({ type: 'agent_view', agentId })}
               onApneChat={apneChatForAgent}
+              onApneOrdreQA={() => setVisning({ type: 'qa_ordre' })}
+            />
+          )}
+
+          {visning.type === 'qa_ordre' && (
+            <AhlsellOrderQA
+              key={prosjekt.id}
+              prosjekt={prosjekt}
+              onApproveToPdf={(items, sum) => {
+                melding(`📄 A4 Tilbuds-PDF generert for ${items.length} poster med sum ${sum.toLocaleString('no-NO')} kr eks. mva!`);
+              }}
+              melding={melding}
+              onLukk={() => setVisning({ type: 'qa_port' })}
             />
           )}
 
