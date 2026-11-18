@@ -3,6 +3,7 @@ import type { ChatMelding } from './gemini';
 import type { Strekk, Trykkbudsjett } from '../engine/sanitaer';
 import type { Utstyrslinje } from '../engine/bereder';
 import type { TidssporingTilstand } from './fremdrift';
+import type { OrderItem } from '../components/AhlsellOrderQA';
 
 /** Det minste vi trenger av localStorage – gjør det enkelt å teste uten nettleser. */
 export interface Lager {
@@ -61,6 +62,8 @@ export interface ProsjektTilstand {
   };
   /** Tids- og ressurssporing: RIV-timer og AI-kjøretid */
   tidssporing?: TidssporingTilstand;
+  /** Vareuttak & materiellflyt for prosjektet (delt mellom Mester og Rørlegger Express) */
+  ordreItems?: OrderItem[];
 }
 
 export interface AppTilstand {

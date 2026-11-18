@@ -1151,6 +1151,10 @@ function AppInnhold() {
               <RorleggerExpressView
                 key={prosjekt.id}
                 prosjekt={prosjekt}
+                initialItems={prosjektTilstand.ordreItems}
+                onOppdaterOrdreItems={(nyItems) =>
+                  oppdaterProsjektTilstand((t) => ({ ...t, ordreItems: nyItems }))
+                }
                 onOppdaterProsjekt={oppdaterAktivtProsjekt}
                 onByttModus={byttModus}
                 onApneFullQA={() => {
@@ -1395,6 +1399,10 @@ function AppInnhold() {
               qa={prosjektTilstand.qa}
               overstyringer={prosjektTilstand.overstyringer ?? {}}
               godkjent={prosjektTilstand.godkjent}
+              ordreItems={prosjektTilstand.ordreItems}
+              onOppdaterOrdreItems={(nyItems) =>
+                oppdaterProsjektTilstand((t) => ({ ...t, ordreItems: nyItems }))
+              }
               onToggleQa={(id) =>
                 oppdaterProsjektTilstand((t) => ({
                   ...t,
@@ -1415,6 +1423,10 @@ function AppInnhold() {
             <AhlsellOrderQA
               key={prosjekt.id}
               prosjekt={prosjekt}
+              initialItems={prosjektTilstand.ordreItems}
+              onOppdaterOrdreItems={(nyItems) =>
+                oppdaterProsjektTilstand((t) => ({ ...t, ordreItems: nyItems }))
+              }
               onApproveToPdf={(items, sum) => {
                 melding(`📄 A4 Tilbuds-PDF generert for ${items.length} poster med sum ${sum.toLocaleString('no-NO')} kr eks. mva!`);
               }}

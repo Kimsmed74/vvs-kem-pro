@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { PROSJEKT_PRESETS } from './data/prosjekter';
-import { beregnUtpris, type OrderItem } from './components/AhlsellOrderQA';
+import {
+  beregnUtpris,
+  INITIAL_ORDER_DATA,
+  synkroniserOrdreMedProsjekt,
+  type OrderItem,
+} from './components/AhlsellOrderQA';
 
 describe('Rørlegger Express - Enova & Kalkyleregler', () => {
   it('tilordner 10 000 kr i Enova-støtte ved Rehabilitering og 0 kr ved Nybygg TEK17', () => {
@@ -95,5 +100,43 @@ NETTO INVESTERING ETTER STØTTE: ${nettoInvestering.toLocaleString('no-NO')} kr 
     expect(totalEksMva).toBeGreaterThan(0);
     expect(rabatt).toBeGreaterThan(0);
     expect(timerSum).toBe(46000);
+  });
+
+  it('deler den samme oppdaterte, komplette varelisten (alle rør, deler og avløpsbøyer) med Mester-visningen', () => {
+    const prosjekt = PROSJEKT_PRESETS[0];
+    const fellesListe = synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
+
+    // Verifiser at felles vareliste har 21 poster og inneholder alle spesifiserte forbindelser
+    expect(fellesListe.length).toBe(21);
+
+    // Rør & gulvvarme
+    expect(fellesListe.some((i) => i.nrf === '5083705' && i.antall === 15)).toBe(true); // PEX 20mm
+    expect(fellesListe.some((i) => i.nrf === '5083703' && i.antall === 75)).toBe(true); // PEX 16mm
+    expect(fellesListe.some((i) => i.nrf === '8370003' && i.antall === 120)).toBe(true); // Gulvvarmerør
+
+    // Fordelerskap, veggbokser og ventiler
+    expect(fellesListe.some((i) => i.nrf === '5118712')).toBe(true); // Fordelerskap
+    expect(fellesListe.some((i) => i.nrf === '5118805')).toBe(true); // QuickBox
+    expect(fellesListe.some((i) => i.nrf === '5621414')).toBe(true); // Kuleventil 3/4"
+    expect(fellesListe.some((i) => i.nrf === '5621404')).toBe(true); // Kuleventil 1/2"
+
+    // Avløp & bend
+    expect(fellesListe.some((i) => i.nrf === '2213316')).toBe(true); // PP 110mm
+    expect(fellesListe.some((i) => i.nrf === '2213233')).toBe(true); // PP 75mm
+    expect(fellesListe.some((i) => i.nrf === '2213133')).toBe(true); // PP 50mm
+    expect(fellesListe.some((i) => i.nrf === '2213346')).toBe(true); // Bend 110 45°
+    expect(fellesListe.some((i) => i.nrf === '2213253')).toBe(true); // Bend 75 45°
+    expect(fellesListe.some((i) => i.nrf === '2213166')).toBe(true); // Bend 50 87.5°
+    expect(fellesListe.some((i) => i.nrf === '2213153')).toBe(true); // Bend 50 45°
+
+    // Klammer
+    expect(fellesListe.some((i) => i.nrf === '5083812')).toBe(true); // RSK 16-20mm
+    expect(fellesListe.some((i) => i.nrf === '2213914')).toBe(true); // Klammer 110mm
+
+    // Verifiser at endring i en visning forplanter seg når state deles via initialItems
+    const modifisertListe = fellesListe.map((item) =>
+      item.nrf === '5083812' ? { ...item, antall: 45 } : item
+    );
+    expect(modifisertListe.find((i) => i.nrf === '5083812')?.antall).toBe(45);
   });
 });

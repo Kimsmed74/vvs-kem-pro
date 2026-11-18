@@ -41,6 +41,8 @@ import { lastNedTekst } from './lib/format';
 
 interface RorleggerExpressProps {
   prosjekt: ProsjektData;
+  initialItems?: OrderItem[];
+  onOppdaterOrdreItems?: (items: OrderItem[]) => void;
   onOppdaterProsjekt: (prosjekt: ProsjektData, endringer?: string[]) => void;
   onByttModus: (modus: 'full' | 'express') => void;
   onApneFullQA?: () => void;
@@ -49,6 +51,8 @@ interface RorleggerExpressProps {
 
 export default function RorleggerExpressView({
   prosjekt,
+  initialItems,
+  onOppdaterOrdreItems,
   onOppdaterProsjekt,
   onByttModus,
   onApneFullQA,
@@ -71,15 +75,35 @@ export default function RorleggerExpressView({
   const [filAnalyseFunn, setFilAnalyseFunn] = useState<string | null>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
 
-  // Vareliste for tilbudet (synkronisert mot prosjekt / INITIAL_ORDER_DATA)
+  // Vareliste for tilbudet (synkronisert mot prosjekt / INITIAL_ORDER_DATA / delt tilstand)
   const [items, setItems] = useState<OrderItem[]>(() => {
+    if (initialItems && initialItems.length > 0) return initialItems;
     return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
   });
 
+  // Hvis initialItems oppdateres utenfra (f.eks. fra Mester-synk), hold state oppdatert
+  useEffect(() => {
+    if (initialItems && initialItems.length > 0) {
+      setItems(initialItems);
+    }
+  }, [initialItems]);
+
   // Synkroniser vareliste hvis prosjektets sanitærutstyr eller varmeanlegg oppdateres via fil
   useEffect(() => {
-    setItems((prev) => synkroniserOrdreMedProsjekt(prev, prosjekt));
+    setItems((prev) => {
+      const ny = synkroniserOrdreMedProsjekt(prev, prosjekt);
+      onOppdaterOrdreItems?.(ny);
+      return ny;
+    });
   }, [prosjekt.sanitaerUtstyr, prosjekt.varmeanlegg]);
+
+  const oppdaterItems = (oppdater: (prev: OrderItem[]) => OrderItem[]) => {
+    setItems((prev) => {
+      const ny = oppdater(prev);
+      onOppdaterOrdreItems?.(ny);
+      return ny;
+    });
+  };
 
   // Varehåndtering
   const [visNyVare, setVisNyVare] = useState<boolean>(false);
@@ -170,11 +194,11 @@ export default function RorleggerExpressView({
   const handleQuantityChange = (id: number, nyttAntall: string) => {
     const parsed = parseInt(nyttAntall, 10);
     const verdi = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
+    oppdaterItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
   };
 
   const toggleKategori = (id: number) => {
-    setItems((prev) =>
+    oppdaterItems((prev) =>
       prev.map((item) =>
         item.id === id
           ? {
@@ -187,7 +211,7 @@ export default function RorleggerExpressView({
   };
 
   const slettVarepost = (id: number) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    oppdaterItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const leggTilVarepost = () => {
@@ -204,7 +228,7 @@ export default function RorleggerExpressView({
       innpris: Math.max(0, nyInnpris || 0),
       kategori: nyKategori,
     };
-    setItems((prev) => [...prev, nyPost]);
+    oppdaterItems((prev) => [...prev, nyPost]);
     setNyNrf('');
     setNyBeskrivelse('');
     setNyAntall(1);

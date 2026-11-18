@@ -28,6 +28,7 @@ export interface OrderItem {
 export interface QAProps {
   prosjekt?: ProsjektData;
   initialItems?: OrderItem[];
+  onOppdaterOrdreItems?: (items: OrderItem[]) => void;
   onApproveToPdf?: (items: OrderItem[], sum: number) => void;
   melding?: (tekst: string) => void;
   onLukk?: () => void;
@@ -366,6 +367,7 @@ export function genererQAKalkyleCSV(
 export function AhlsellOrderQA({
   prosjekt,
   initialItems,
+  onOppdaterOrdreItems,
   onApproveToPdf,
   melding,
   onLukk,
@@ -375,10 +377,32 @@ export function AhlsellOrderQA({
     return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
   });
 
-  // Hvis prosjektet endres utenfra, oppdater relevante mengder
+  // Hvis initialItems oppdateres utenfra (f.eks. fra delt prosjekttilstand), synkroniser state
   useEffect(() => {
-    setItems((prev) => synkroniserOrdreMedProsjekt(prev, prosjekt));
+    if (initialItems && initialItems.length > 0) {
+      setItems(initialItems);
+    }
+  }, [initialItems]);
+
+  // Hvis prosjektet endres utenfra (f.eks. ved filopplasting av sanitærutstyr)
+  useEffect(() => {
+    if (prosjekt?.sanitaerUtstyr || prosjekt?.varmeanlegg) {
+      setItems((prev) => {
+        const ny = synkroniserOrdreMedProsjekt(prev, prosjekt);
+        onOppdaterOrdreItems?.(ny);
+        return ny;
+      });
+    }
   }, [prosjekt?.sanitaerUtstyr, prosjekt?.varmeanlegg]);
+
+  // Hjelpefunksjon for å oppdatere og varsle overordnede komponenter
+  const oppdaterItems = (oppdater: (prev: OrderItem[]) => OrderItem[]) => {
+    setItems((prev) => {
+      const ny = oppdater(prev);
+      onOppdaterOrdreItems?.(ny);
+      return ny;
+    });
+  };
 
   const [systemRabattAktiv, setSystemRabattAktiv] = useState<boolean>(true);
   const [inkluderTimer, setInkluderTimer] = useState<boolean>(true);
@@ -410,11 +434,11 @@ export function AhlsellOrderQA({
   const handleQuantityChange = (id: number, nyttAntall: string) => {
     const parsed = parseInt(nyttAntall, 10);
     const verdi = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
+    oppdaterItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
   };
 
   const toggleKategori = (id: number) => {
-    setItems((prev) =>
+    oppdaterItems((prev) =>
       prev.map((item) =>
         item.id === id
           ? {
@@ -427,7 +451,7 @@ export function AhlsellOrderQA({
   };
 
   const slettVarepost = (id: number) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
+    oppdaterItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const leggTilVarepost = () => {
@@ -444,7 +468,7 @@ export function AhlsellOrderQA({
       innpris: Math.max(0, nyInnpris || 0),
       kategori: nyKategori,
     };
-    setItems((prev) => [...prev, nyPost]);
+    oppdaterItems((prev) => [...prev, nyPost]);
     setNyNrf('');
     setNyBeskrivelse('');
     setNyAntall(1);

@@ -1,6 +1,6 @@
 import type { ProsjektData } from '../data/prosjekter';
 import GatekeeperPanel from '../components/GatekeeperPanel';
-import AhlsellOrderQA from '../components/AhlsellOrderQA';
+import AhlsellOrderQA, { type OrderItem } from '../components/AhlsellOrderQA';
 import { Kort, Knapp } from '../components/common/ui';
 import type { ProsjektAnalyse } from '../lib/analyse';
 import { BEREDER_ANTAGELSER } from '../lib/analyse';
@@ -19,6 +19,8 @@ interface Props {
     tidspunkt: string;
     medForbehold: boolean;
   };
+  ordreItems?: OrderItem[];
+  onOppdaterOrdreItems?: (items: OrderItem[]) => void;
   onToggleQa: (id: string) => void;
   onNullstillQa?: () => void;
   onOppdaterProsjektOgOverstyringer?: (
@@ -39,6 +41,8 @@ export default function Agent16QAPort({
   qa,
   overstyringer = {},
   godkjent,
+  ordreItems,
+  onOppdaterOrdreItems,
   onToggleQa,
   onNullstillQa,
   onOppdaterProsjektOgOverstyringer,
@@ -450,6 +454,8 @@ export default function Agent16QAPort({
       {/* Vareuttak, Timeverk & ERP-Kalkyle */}
       <AhlsellOrderQA
         prosjekt={prosjekt}
+        initialItems={ordreItems}
+        onOppdaterOrdreItems={onOppdaterOrdreItems}
         onApproveToPdf={(items, sum) => {
           melding(
             `📄 A4 Tilbuds-PDF generert for ${items.length} poster med sum ${sum.toLocaleString('no-NO')} kr eks. mva!`
