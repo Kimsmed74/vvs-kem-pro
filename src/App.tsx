@@ -48,6 +48,7 @@ import {
   type OverstyringInfo,
 } from './lib/lagring';
 const AhlsellOrderQA = lazy(() => import('./components/AhlsellOrderQA'));
+const RorleggerExpressView = lazy(() => import('./RorleggerExpressView'));
 const Sanitaer = lazy(() => import('./components/modules/01_sanitaer'));
 const FagModulVisning = lazy(() => import('./components/modules/FagModulVisning'));
 const AgentHub = lazy(() => import('./agents/AgentHub'));
@@ -103,6 +104,34 @@ function AppInnhold() {
       ? lastInnstillinger(window.localStorage)
       : { geminiNokkel: '', modell: 'gemini-2.5-flash' }
   );
+
+  // Modus: 'full' (Mester & Ingeniør) vs. 'express' (Rørlegger Express / Kundemodus)
+  const [appModus, setAppModus] = useState<'full' | 'express'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const m = params.get('mode') || params.get('modus');
+      if (m === 'express' || m === 'kunde') return 'express';
+      if (m === 'full' || m === 'mester') return 'full';
+      const lagret = window.localStorage?.getItem('vvs_kem_pro_modus');
+      if (lagret === 'express') return 'express';
+    }
+    return 'full';
+  });
+
+  const byttModus = useCallback((nyModus: 'full' | 'express') => {
+    setAppModus(nyModus);
+    if (typeof window !== 'undefined') {
+      window.localStorage?.setItem('vvs_kem_pro_modus', nyModus);
+      const url = new URL(window.location.href);
+      if (nyModus === 'express') {
+        url.searchParams.set('mode', 'express');
+      } else {
+        url.searchParams.delete('mode');
+        url.searchParams.delete('modus');
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
 
   const [visning, setVisningState] = useState<HovedVisning>({ type: 'agent_hub' });
   const [mobilMenyApen, setMobilMenyApen] = useState<boolean>(false);
@@ -689,6 +718,18 @@ function AppInnhold() {
         >
           ❓ Slik bruker du appen (Manual)
         </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMobilMenyApen(false);
+            byttModus('express');
+          }}
+          className="min-h-[44px] w-full rounded-lg border border-blue-700/80 bg-blue-950/50 px-3 py-2 text-left text-xs font-bold text-blue-200 hover:border-blue-500 hover:bg-blue-900/60 shadow transition flex items-center justify-between"
+        >
+          <span>⚡ Rørlegger Express (Kunde)</span>
+          <span className="rounded bg-blue-600 px-1.5 py-0.5 text-[10px] text-white">3-Steg</span>
+        </button>
       </div>
 
       {/* Gruppe 1: Kommandosentral & 19 Agenter */}
@@ -808,9 +849,11 @@ function AppInnhold() {
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
       {/* Sidebar for Desktop (lg+) */}
-      <aside className="hidden max-h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-800 bg-slate-950 p-4 lg:flex">
-        {sidebarInnhold(false)}
-      </aside>
+      {appModus === 'full' && (
+        <aside className="hidden max-h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-800 bg-slate-950 p-4 lg:flex">
+          {sidebarInnhold(false)}
+        </aside>
+      )}
 
       {/* Uttrekkbar meny-skuff (Drawer) for Mobil & Nettbrett (< lg) */}
       {mobilMenyApen && (
@@ -962,7 +1005,41 @@ function AppInnhold() {
                 />
               </div>
 
-              {/* Globale Lover Statusindikatorer + Live Fremdrift + Innstillinger & Brukerveiledning */}
+              {/* Modus-bryter i toppnavigasjon: Mester & Ingeniør (Full) vs. Rørlegger Express (Kunde) */}
+              <div className="inline-flex shrink-0 items-center rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => byttModus('full')}
+                  aria-pressed={appModus === 'full'}
+                  title="Mester & Ingeniør: Full tilgang til alle 19 agenter, moduler og Gatekeeper QA"
+                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    appModus === 'full'
+                      ? 'border border-emerald-500/50 bg-emerald-700 text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>🎓</span>
+                  <span>Mester &amp; Ingeniør (Full)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => byttModus('express')}
+                  aria-pressed={appModus === 'express'}
+                  title="Rørlegger Express: Strømlinjeformet 3-stegs kundemodus for hurtigkalkyle og bestilling"
+                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                    appModus === 'express'
+                      ? 'border border-blue-500/50 bg-blue-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>⚡</span>
+                  <span>Rørlegger Express (Kunde)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Rad 2: Globale Lover Statusindikatorer + Live Fremdrift + Innstillinger (kun i full modus) */}
+            {appModus === 'full' && (
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 {/* Live Fremdriftsindikator & Mangelliste */}
                 <LiveFremdriftsBar
@@ -1057,7 +1134,7 @@ function AppInnhold() {
                   ❓ Slik bruker du appen
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </header>
 
@@ -1070,7 +1147,21 @@ function AppInnhold() {
               </div>
             }
           >
-          {visMoteOpptaker && (
+            {appModus === 'express' ? (
+              <RorleggerExpressView
+                key={prosjekt.id}
+                prosjekt={prosjekt}
+                onOppdaterProsjekt={oppdaterAktivtProsjekt}
+                onByttModus={byttModus}
+                onApneFullQA={() => {
+                  byttModus('full');
+                  setVisning({ type: 'qa_port' });
+                }}
+                melding={melding}
+              />
+            ) : (
+              <>
+                {visMoteOpptaker && (
             <div className="mb-5">
               <MoteOpptaker
                 key={prosjekt.id}
@@ -1388,61 +1479,65 @@ function AppInnhold() {
               melding={melding}
             />
           )}
+              </>
+            )}
           </Suspense>
         </main>
 
-        {/* Mobilbunn-navigasjon */}
-        <nav
-          className="flex gap-1 overflow-x-auto border-t border-slate-800 bg-slate-950 p-2 lg:hidden"
-          aria-label="Navigasjon (mobil)"
-        >
-          <NavKnapp
-            aktiv={visning.type === 'prosjektoversikt'}
-            onClick={() => setVisning({ type: 'prosjektoversikt' })}
+        {/* Mobilbunn-navigasjon (kun i full visning) */}
+        {appModus === 'full' && (
+          <nav
+            className="flex gap-1 overflow-x-auto border-t border-slate-800 bg-slate-950 p-2 lg:hidden"
+            aria-label="Navigasjon (mobil)"
           >
-            📊 Oversikt ({aktivFremdrift.fremdriftProsent}%)
-          </NavKnapp>
-          <NavKnapp
-            aktiv={visning.type === 'veiviser'}
-            onClick={() => setVisning({ type: 'veiviser' })}
-          >
-            🚀 Veiviser
-          </NavKnapp>
-          <NavKnapp
-            aktiv={visning.type === 'galleri'}
-            onClick={() => setVisning({ type: 'galleri' })}
-          >
-            🖼️ Filer ({prosjektFiler.length})
-          </NavKnapp>
-          <NavKnapp
-            aktiv={visning.type === 'agent_hub'}
-            onClick={() => setVisning({ type: 'agent_hub' })}
-          >
-            ⚡ Hub
-          </NavKnapp>
-          <NavKnapp
-            aktiv={visning.type === 'qa_port'}
-            onClick={() => setVisning({ type: 'qa_port' })}
-          >
-            🛡️ QA
-          </NavKnapp>
-          <NavKnapp
-            aktiv={visning.type === 'akademi'}
-            onClick={() => setVisning({ type: 'akademi' })}
-          >
-            🎓 Akademi
-          </NavKnapp>
-          <NavKnapp
-            aktiv={visning.type === 'modul' && visning.modulId === 'sanitaer'}
-            onClick={() => setVisning({ type: 'modul', modulId: 'sanitaer' })}
-          >
-            💧 Sanitær
-          </NavKnapp>
-        </nav>
+            <NavKnapp
+              aktiv={visning.type === 'prosjektoversikt'}
+              onClick={() => setVisning({ type: 'prosjektoversikt' })}
+            >
+              📊 Oversikt ({aktivFremdrift.fremdriftProsent}%)
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'veiviser'}
+              onClick={() => setVisning({ type: 'veiviser' })}
+            >
+              🚀 Veiviser
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'galleri'}
+              onClick={() => setVisning({ type: 'galleri' })}
+            >
+              🖼️ Filer ({prosjektFiler.length})
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'agent_hub'}
+              onClick={() => setVisning({ type: 'agent_hub' })}
+            >
+              ⚡ Hub
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'qa_port'}
+              onClick={() => setVisning({ type: 'qa_port' })}
+            >
+              🛡️ QA
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'akademi'}
+              onClick={() => setVisning({ type: 'akademi' })}
+            >
+              🎓 Akademi
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'modul' && visning.modulId === 'sanitaer'}
+              onClick={() => setVisning({ type: 'modul', modulId: 'sanitaer' })}
+            >
+              💧 Sanitær
+            </NavKnapp>
+          </nav>
+        )}
       </div>
 
-      {/* Fast AI-chat-knapp nede i høyre hjørne */}
-      {!chatAgentId && (
+      {/* Fast AI-chat-knapp nede i høyre hjørne (kun i full visning) */}
+      {appModus === 'full' && !chatAgentId && (
         <button
           type="button"
           onClick={() => apneChatForAgent(aktivAgent?.id ?? sistBrukteAgentId)}

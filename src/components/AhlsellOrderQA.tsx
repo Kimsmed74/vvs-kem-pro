@@ -33,7 +33,7 @@ export interface QAProps {
   onLukk?: () => void;
 }
 
-const INITIAL_ORDER_DATA: OrderItem[] = [
+export const INITIAL_ORDER_DATA: OrderItem[] = [
   { id: 1, nrf: '6190013', beskrivelse: 'Geberit Duofix Vegghengt WC-sisterne komplett', antall: 3, enhet: 'stk', innpris: 3800, kategori: 'Lokkeand' },
   { id: 2, nrf: '4290154', beskrivelse: 'Porsgrund Glow Servant med underskap', antall: 2, enhet: 'stk', innpris: 4200, kategori: 'Lokkeand' },
   { id: 3, nrf: '5083703', beskrivelse: 'Roth MultiPex rør-i-rør 16mm', antall: 75, enhet: 'm', innpris: 38, kategori: 'Mester-tillegg' },
