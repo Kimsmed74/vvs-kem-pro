@@ -52,6 +52,7 @@ import {
   loggUt,
   type AuthSession,
 } from './lib/auth';
+import { ProjectProvider } from './context/ProjectContext';
 const AuthPortal = lazy(() => import('./AuthPortal'));
 const CompanyProfileModal = lazy(() => import('./CompanyProfileModal'));
 const AhlsellOrderQA = lazy(() => import('./components/AhlsellOrderQA'));
@@ -904,7 +905,16 @@ function AppInnhold() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950 text-slate-100">
+    <ProjectProvider
+      aktivtProsjekt={prosjekt}
+      onOppdaterProsjekt={oppdaterAktivtProsjekt}
+      prosjektTilstand={prosjektTilstand}
+      onOppdaterProsjektTilstand={oppdaterProsjektTilstand}
+      companyProfile={authSession.company}
+      analyse={analyse}
+      melding={melding}
+    >
+      <div className="flex min-h-screen bg-slate-950 text-slate-100">
       {/* Sidebar for Desktop (lg+) */}
       {appModus === 'full' && (
         <aside className="hidden max-h-screen w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-800 bg-slate-950 p-4 lg:flex">
@@ -1803,6 +1813,7 @@ function AppInnhold() {
         </div>
       )}
     </div>
+    </ProjectProvider>
   );
 }
 

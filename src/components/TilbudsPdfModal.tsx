@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   X,
   Printer,
@@ -11,6 +11,7 @@ import type { ProsjektData } from '../data/prosjekter';
 import { beregnUtpris, type OrderItem } from './AhlsellOrderQA';
 import type { CompanyProfile } from '../lib/auth';
 import { lastNedTekst } from '../lib/format';
+import { useProject } from '../context/ProjectContext';
 
 interface TilbudsPdfModalProps {
   prosjekt: ProsjektData;
@@ -37,6 +38,13 @@ export default function TilbudsPdfModal({
   onClose,
   melding,
 }: TilbudsPdfModalProps) {
+  let projectCtx: ReturnType<typeof useProject> | null = null;
+  try {
+    projectCtx = useProject();
+  } catch {
+    projectCtx = null;
+  }
+
   const [forbehold, setForbehold] = useState<string>(
     'Tilbudet forutsetter normal bygningsmessig tilrettelegging og fri adkomst til installasjonssted. ' +
       'Arbeidet utføres fagmessig iht. Byggforskserien 553.102, våtromsnormen og gjeldende TEK17-krav. ' +
@@ -48,20 +56,59 @@ export default function TilbudsPdfModal({
   const datoStr = new Date().toLocaleDateString('no-NO');
   const tilbudsNr = `TB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // Beregninger
-  const aktiveItems = items.filter((i) => i.antall > 0);
-  const materiellRaa = aktiveItems.reduce(
-    (sum, i) => sum + beregnUtpris(i.innpris, i.kategori) * i.antall,
-    0
-  );
-  const rabattBelop = systemRabattAktiv ? Math.round(materiellRaa * 0.05) : 0;
-  const materiellNetto = materiellRaa - rabattBelop;
-  const timerSum = antallTimer * timeprisUt;
-  const sumEksMva = materiellNetto + timerSum;
-  const mva = Math.round(sumEksMva * 0.25);
-  const sumInklMva = sumEksMva + mva;
-  const enovaTilskudd = prosjektType === 'rehab' ? 10000 : 0;
-  const nettoInvestering = sumInklMva - enovaTilskudd;
+  // Bruk sentrale verdier fra context hvis tilgjengelig for 100 % numerisk identitet
+  const aktiveItems = (projectCtx ? projectCtx.vareliste : items).filter((i) => i.antall > 0);
+  const gjeldendeTimer = projectCtx ? projectCtx.timeverk.antallTimer : antallTimer;
+  const gjeldendeTimepris = projectCtx ? projectCtx.timeverk.timeprisUt : timeprisUt;
+
+  const {
+    materiellNetto,
+    rabattBelop,
+    timerSum,
+    sumEksMva,
+    mva,
+    sumInklMva,
+    enovaTilskudd,
+    nettoInvestering,
+  } = useMemo(() => {
+    if (projectCtx) {
+      const tot = projectCtx.kalkyleTotals;
+      return {
+        materiellNetto: tot.materiellNetto,
+        rabattBelop: tot.rabattBelop,
+        timerSum: tot.timerSum,
+        sumEksMva: tot.totalEksMva,
+        mva: tot.mva,
+        sumInklMva: tot.totalInklMva,
+        enovaTilskudd: tot.enovaTilskudd,
+        nettoInvestering: tot.nettoInvestering,
+      };
+    }
+
+    const materiellRaa = aktiveItems.reduce(
+      (sum, i) => sum + beregnUtpris(i.innpris, i.kategori) * i.antall,
+      0
+    );
+    const rabatt = systemRabattAktiv ? Math.round(materiellRaa * 0.05) : 0;
+    const matNetto = materiellRaa - rabatt;
+    const tSum = gjeldendeTimer * gjeldendeTimepris;
+    const totalEks = matNetto + tSum;
+    const mvaVal = Math.round(totalEks * 0.25);
+    const totalInkl = totalEks + mvaVal;
+    const enovaVal = prosjektType === 'rehab' ? 10000 : 0;
+    const nettoInv = totalInkl - enovaVal;
+
+    return {
+      materiellNetto: matNetto,
+      rabattBelop: rabatt,
+      timerSum: tSum,
+      sumEksMva: totalEks,
+      mva: mvaVal,
+      sumInklMva: totalInkl,
+      enovaTilskudd: enovaVal,
+      nettoInvestering: nettoInv,
+    };
+  }, [projectCtx, aktiveItems, systemRabattAktiv, gjeldendeTimer, gjeldendeTimepris, prosjektType]);
 
   const handlePrint = () => {
     window.print();

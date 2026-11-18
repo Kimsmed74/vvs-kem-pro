@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   UploadCloud,
   CheckCircle,
@@ -20,6 +20,8 @@ import {
   Trash2,
   Plus,
   Sparkles,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import type { ProsjektData } from './data/prosjekter';
 import {
@@ -41,6 +43,7 @@ import {
 import { lastNedTekst } from './lib/format';
 import type { CompanyProfile, UserRole } from './lib/auth';
 import TilbudsPdfModal from './components/TilbudsPdfModal';
+import { useProject } from './context/ProjectContext';
 
 interface RorleggerExpressProps {
   prosjekt: ProsjektData;
@@ -65,25 +68,59 @@ export default function RorleggerExpressView({
   onApneFullQA,
   melding,
 }: RorleggerExpressProps) {
+  // Global ProjectContext med sikker fallback for isolerte tester
+  let projectCtx: ReturnType<typeof useProject> | null = null;
+  try {
+    projectCtx = useProject();
+  } catch {
+    projectCtx = null;
+  }
+
   // 3-stegs arbeidsflyt: 1 = Last opp, 2 = QA & Juster, 3 = Ferdig Tilbud & Bestilling
   const [aktivtSteg, setAktivtSteg] = useState<1 | 2 | 3>(1);
 
   // Steg 1 inndata
-  const [prosjektType, setProsjektType] = useState<'rehab' | 'tek17'>('rehab');
+  const [lokalProsjektType, setLokalProsjektType] = useState<'rehab' | 'tek17'>('rehab');
+  const prosjektType = lokalProsjektType;
+  const setProsjektType = (ny: 'rehab' | 'tek17') => {
+    setLokalProsjektType(ny);
+    if (projectCtx) projectCtx.settProsjektType('bolig');
+  };
+
   const [bedriftsNavn, setBedriftsNavn] = useState<string>(
     () => companyProfile?.firmanavn ?? 'Rørleggerbedriften AS'
   );
-  const [timeprisUt, setTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
-  const [antallTimer, setAntallTimer] = useState<number>(65);
-  const [timeSelvkost, setTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
-  const [systemRabattAktiv, setSystemRabattAktiv] = useState<boolean>(true);
+
+  // Fallback lokal tilstand hvis komponenten kjøres uten ProjectProvider
+  const [lokalItems, setLokalItems] = useState<OrderItem[]>(() => {
+    if (initialItems && initialItems.length > 0) return initialItems;
+    return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
+  });
+  const [lokalSystemRabatt, setLokalSystemRabatt] = useState<boolean>(true);
+  const [lokalAntallTimer, setLokalAntallTimer] = useState<number>(65);
+  const [lokalTimeprisUt, setLokalTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
+  const [lokalTimeSelvkost, setLokalTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
   const [visTilbudsPdfModal, setVisTilbudsPdfModal] = useState<boolean>(false);
+
+  // Aktive verdier: henter fra context hvis tilgjengelig, ellers lokal state
+  const items = projectCtx ? projectCtx.vareliste : lokalItems;
+  const systemRabattAktiv = projectCtx ? projectCtx.systemRabattAktiv : lokalSystemRabatt;
+  const antallTimer = projectCtx ? projectCtx.timeverk.antallTimer : lokalAntallTimer;
+  const timeprisUt = projectCtx ? projectCtx.timeverk.timeprisUt : lokalTimeprisUt;
+  const timeSelvkost = projectCtx ? projectCtx.timeverk.timeSelvkost : lokalTimeSelvkost;
+  const mangelSjekkliste = projectCtx ? projectCtx.mangelSjekkliste : [];
 
   useEffect(() => {
     if (companyProfile?.firmanavn) setBedriftsNavn(companyProfile.firmanavn);
-    if (companyProfile?.timeprisUt) setTimeprisUt(companyProfile.timeprisUt);
-    if (companyProfile?.timeSelvkost) setTimeSelvkost(companyProfile.timeSelvkost);
-  }, [companyProfile?.firmanavn, companyProfile?.timeprisUt, companyProfile?.timeSelvkost]);
+    if (companyProfile?.timeprisUt) {
+      if (projectCtx) projectCtx.oppdaterTimeverk({ timeprisUt: companyProfile.timeprisUt });
+      else setLokalTimeprisUt(companyProfile.timeprisUt);
+    }
+    if (companyProfile?.timeSelvkost) {
+      if (projectCtx) projectCtx.oppdaterTimeverk({ timeSelvkost: companyProfile.timeSelvkost });
+      else setLokalTimeSelvkost(companyProfile.timeSelvkost);
+    }
+  }, [companyProfile?.firmanavn, companyProfile?.timeprisUt, companyProfile?.timeSelvkost, projectCtx]);
 
   // Filopplasting & analyse state
   const [drarOver, setDrarOver] = useState<boolean>(false);
@@ -91,35 +128,40 @@ export default function RorleggerExpressView({
   const [filAnalyseFunn, setFilAnalyseFunn] = useState<string | null>(null);
   const filInputRef = useRef<HTMLInputElement>(null);
 
-  // Vareliste for tilbudet (synkronisert mot prosjekt / INITIAL_ORDER_DATA / delt tilstand)
-  const [items, setItems] = useState<OrderItem[]>(() => {
-    if (initialItems && initialItems.length > 0) return initialItems;
-    return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
-  });
-
-  // Hvis initialItems oppdateres utenfra (f.eks. fra Mester-synk), hold state oppdatert
+  // Hvis initialItems oppdateres utenfra i isolert testmiljø
   useEffect(() => {
-    if (initialItems && initialItems.length > 0) {
-      setItems(initialItems);
+    if (!projectCtx && initialItems && initialItems.length > 0) {
+      setLokalItems(initialItems);
     }
-  }, [initialItems]);
+  }, [projectCtx, initialItems]);
 
-  // Synkroniser vareliste hvis prosjektets sanitærutstyr eller varmeanlegg oppdateres via fil
+  // Synkroniser lokal vareliste hvis prosjektets sanitærutstyr eller varmeanlegg oppdateres via fil (uten context)
   useEffect(() => {
-    setItems((prev) => {
-      const ny = synkroniserOrdreMedProsjekt(prev, prosjekt);
-      onOppdaterOrdreItems?.(ny);
-      return ny;
-    });
-  }, [prosjekt.sanitaerUtstyr, prosjekt.varmeanlegg]);
+    if (!projectCtx && (prosjekt.sanitaerUtstyr || prosjekt.varmeanlegg)) {
+      setLokalItems((prev) => {
+        const ny = synkroniserOrdreMedProsjekt(prev, prosjekt);
+        onOppdaterOrdreItems?.(ny);
+        return ny;
+      });
+    }
+  }, [projectCtx, prosjekt.sanitaerUtstyr, prosjekt.varmeanlegg, onOppdaterOrdreItems]);
 
-  const oppdaterItems = (oppdater: (prev: OrderItem[]) => OrderItem[]) => {
-    setItems((prev) => {
-      const ny = oppdater(prev);
-      onOppdaterOrdreItems?.(ny);
-      return ny;
-    });
-  };
+  const oppdaterItems = useCallback(
+    (oppdater: (prev: OrderItem[]) => OrderItem[]) => {
+      if (projectCtx) {
+        projectCtx.settVareliste(oppdater);
+        const ny = oppdater(projectCtx.vareliste);
+        onOppdaterOrdreItems?.(ny);
+      } else {
+        setLokalItems((prev) => {
+          const ny = oppdater(prev);
+          onOppdaterOrdreItems?.(ny);
+          return ny;
+        });
+      }
+    },
+    [projectCtx, onOppdaterOrdreItems]
+  );
 
   // Varehåndtering
   const [visNyVare, setVisNyVare] = useState<boolean>(false);
@@ -147,40 +189,57 @@ export default function RorleggerExpressView({
   const [kopiertEpostStatus, setKopiertEpostStatus] = useState<boolean>(false);
   const [kopiertTilbudStatus, setKopiertTilbudStatus] = useState<boolean>(false);
 
-  // Beregninger
-  const materiellInnkjop = useMemo(() => {
-    return items.reduce((sum, item) => sum + Math.max(0, item.innpris) * Math.max(0, item.antall), 0);
-  }, [items]);
-
-  const materiellUtprisRaa = useMemo(() => {
-    return items.reduce(
+  // Beregninger: henter fra context for 100 % numerisk identitet eller beregner lokalt
+  const totals = useMemo(() => {
+    if (projectCtx) {
+      return projectCtx.kalkyleTotals;
+    }
+    const matInn = items.reduce((sum, item) => sum + Math.max(0, item.innpris) * Math.max(0, item.antall), 0);
+    const matUtRaa = items.reduce(
       (sum, item) => sum + beregnUtpris(item.innpris, item.kategori) * Math.max(0, item.antall),
       0
     );
-  }, [items]);
+    const rabatt = systemRabattAktiv ? Math.round(matUtRaa * 0.05) : 0;
+    const matNetto = matUtRaa - rabatt;
+    const tSum = antallTimer * timeprisUt;
+    const tKost = antallTimer * timeSelvkost;
+    const totEksMva = matNetto + tSum;
+    const totKost = matInn + tKost;
+    const dgBelop = totEksMva - totKost;
+    const dgProsent = totEksMva > 0 ? ((dgBelop / totEksMva) * 100).toFixed(1) : '0.0';
+    const mvaVal = Math.round(totEksMva * 0.25);
+    const totInklMva = totEksMva + mvaVal;
+    const enovaVal = prosjektType === 'rehab' ? 10000 : 0;
+    const nettoInv = totInklMva - enovaVal;
 
-  const rabattBelop = useMemo(() => {
-    return systemRabattAktiv ? Math.round(materiellUtprisRaa * 0.05) : 0;
-  }, [systemRabattAktiv, materiellUtprisRaa]);
+    return {
+      materiellInnkjop: matInn,
+      materiellUtprisRaa: matUtRaa,
+      rabattBelop: rabatt,
+      materiellNetto: matNetto,
+      timerSum: tSum,
+      timerKost: tKost,
+      totalEksMva: totEksMva,
+      totalKost: totKost,
+      totalDGBelop: dgBelop,
+      totalDGProsent: dgProsent,
+      mva: mvaVal,
+      totalInklMva: totInklMva,
+      enovaTilskudd: enovaVal,
+      nettoInvestering: nettoInv,
+    };
+  }, [projectCtx, items, systemRabattAktiv, antallTimer, timeprisUt, timeSelvkost, prosjektType]);
 
-  const materiellNetto = materiellUtprisRaa - rabattBelop;
-  const timerSum = antallTimer * timeprisUt;
-  const timerKost = antallTimer * timeSelvkost;
+  const rabattBelop = totals.rabattBelop;
+  const materiellNetto = totals.materiellNetto;
+  const timerSum = totals.timerSum;
+  const totalEksMva = totals.totalEksMva;
+  const totalDGProsent = totals.totalDGProsent;
+  const mva = totals.mva;
+  const totalInklMva = totals.totalInklMva;
+  const nettoInvesteringEtterEnova = totals.nettoInvestering;
 
-  const totalEksMva = materiellNetto + timerSum;
-  const totalKost = materiellInnkjop + timerKost;
-  const totalDGBelop = totalEksMva - totalKost;
-  const totalDGProsent = totalEksMva > 0 ? ((totalDGBelop / totalEksMva) * 100).toFixed(1) : '0.0';
-
-  const mvaSats = 0.25;
-  const mva = Math.round(totalEksMva * mvaSats);
-  const totalInklMva = totalEksMva + mva;
-
-  // Enova-beregning: 10 000 kr ved rehabilitering (for varmepumpe / energiløsning)
-  const enovaTilskudd = prosjektType === 'rehab' ? 10000 : 0;
-  const nettoInvesteringEtterEnova = totalInklMva - enovaTilskudd;
-
-  // Håndter filopplasting og automatisk dokumentanalyse
+  // Håndter filopplasting og automatisk dokumentanalyse med dynamisk krysstale
   const behandleFiler = async (filer: FileList | File[]) => {
     const fil = filer[0];
     if (!fil) return;
@@ -195,9 +254,13 @@ export default function RorleggerExpressView({
         funnTekst || `Lest fil «${fil.name}» (${(fil.size / 1024).toFixed(0)} kB). Ingen data funnet.`
       );
 
-      // Flett automatisk inn i prosjekt-state
+      // Flett automatisk inn i prosjekt-state (og la context regenerere varelisten dynamisk!)
       const oppdatert = flettUttrekkInnIProsjekt(prosjekt, uttrekk);
-      onOppdaterProsjekt(oppdatert, [`Automatisk uthenting fra ${fil.name}`]);
+      if (projectCtx) {
+        projectCtx.oppdaterProsjekt(oppdatert, [`Automatisk uthenting fra ${fil.name}`]);
+      } else {
+        onOppdaterProsjekt(oppdatert, [`Automatisk uthenting fra ${fil.name}`]);
+      }
       melding(`✅ Analysert «${fil.name}»: Data overført til tilbudet!`);
     } catch (err) {
       console.error(err);
@@ -210,24 +273,59 @@ export default function RorleggerExpressView({
   const handleQuantityChange = (id: number, nyttAntall: string) => {
     const parsed = parseInt(nyttAntall, 10);
     const verdi = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    oppdaterItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
+    if (projectCtx) {
+      projectCtx.oppdaterVareAntall(id, verdi);
+      onOppdaterOrdreItems?.(projectCtx.vareliste.map((i) => (i.id === id ? { ...i, antall: verdi } : i)));
+    } else {
+      oppdaterItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
+    }
   };
 
   const toggleKategori = (id: number) => {
-    oppdaterItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              kategori: item.kategori === 'Lokkeand' ? 'Mester-tillegg' : 'Lokkeand',
-            }
-          : item
-      )
-    );
+    if (projectCtx) {
+      projectCtx.toggleVareKategori(id);
+      onOppdaterOrdreItems?.(
+        projectCtx.vareliste.map((i) =>
+          i.id === id ? { ...i, kategori: i.kategori === 'Lokkeand' ? 'Mester-tillegg' : 'Lokkeand' } : i
+        )
+      );
+    } else {
+      oppdaterItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                kategori: item.kategori === 'Lokkeand' ? 'Mester-tillegg' : 'Lokkeand',
+              }
+            : item
+        )
+      );
+    }
   };
 
   const slettVarepost = (id: number) => {
-    oppdaterItems((prev) => prev.filter((item) => item.id !== id));
+    if (projectCtx) {
+      projectCtx.slettVare(id);
+      onOppdaterOrdreItems?.(projectCtx.vareliste.filter((i) => i.id !== id));
+    } else {
+      oppdaterItems((prev) => prev.filter((item) => item.id !== id));
+    }
+  };
+
+  const handterFlyttVare = (index: number, retning: 'opp' | 'ned') => {
+    if (projectCtx) {
+      projectCtx.flyttVare(index, retning);
+    } else {
+      oppdaterItems((prev) => {
+        const ny = [...prev];
+        const target = retning === 'opp' ? index - 1 : index + 1;
+        if (target < 0 || target >= ny.length) return ny;
+        const temp = ny[index];
+        ny[index] = ny[target];
+        ny[target] = temp;
+        return ny;
+      });
+    }
   };
 
   const leggTilVarepost = () => {
@@ -649,7 +747,11 @@ ${bedriftsNavn}`;
                       min="500"
                       step="50"
                       value={timeprisUt}
-                      onChange={(e) => setTimeprisUt(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                      onChange={(e) => {
+                        const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                        if (projectCtx) projectCtx.oppdaterTimeverk({ timeprisUt: val });
+                        else setLokalTimeprisUt(val);
+                      }}
                       className="w-full min-h-[44px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 pr-10 text-xs font-bold text-amber-400 focus:border-blue-500 focus:outline-none"
                     />
                     <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
@@ -685,11 +787,13 @@ ${bedriftsNavn}`;
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-5 w-5 text-amber-400" />
                   <h3 className="text-base font-bold text-amber-300">
-                    Viktige avklaringer før du gir pris (Unngå typiske feller)
+                    Viktige avklaringer før du gir pris (Unngå typiske feller &amp; Lov 1/2/3)
                   </h3>
                 </div>
                 <p className="mt-1 text-xs text-slate-300">
-                  Vi fant 4 punkter i tegningen som ofte medfører uforutsette merkostnader hvis de ikke avklares med byggherre på forhånd:
+                  {mangelSjekkliste.length > 0
+                    ? `Fant ${mangelSjekkliste.length} avklaringspunkter i prosjektunderlaget. Klikk for å markere som avklart:`
+                    : 'Vi fant 4 punkter i tegningen som ofte medfører uforutsette merkostnader hvis de ikke avklares med byggherre på forhånd:'}
                 </p>
               </div>
 
@@ -708,18 +812,55 @@ ${bedriftsNavn}`;
             </div>
 
             <div className="mt-4 grid gap-2.5 sm:grid-cols-2 text-xs text-slate-300">
-              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                <span className="font-bold text-amber-400">1. Koter &amp; Avløpsfall:</span> Kommunale stikkledningskoter (IBR/ITR) mangler. Nødvendig for å sikre tilstrekkelig selvfall og unngå tilbakeslag.
-              </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                <span className="font-bold text-amber-400">2. Vannmåler &amp; Tilbakeslag:</span> Plassering av hovedstoppekran og kategori 4 tilbakeslagssikring er ikke angitt.
-              </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                <span className="font-bold text-amber-400">3. El-kapasitet (Sikringsskap):</span> Byggets spenning og hovedsikring må bekreftes mot varmepumpens spisslast.
-              </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
-                <span className="font-bold text-amber-400">4. Overvann &amp; Drenering:</span> Kommunale fordrøyningskrav må avklares før utvendige rør prissettes.
-              </div>
+              {mangelSjekkliste.length > 0 ? (
+                mangelSjekkliste.map((m) => (
+                  <div
+                    key={m.id}
+                    onClick={() => projectCtx?.toggleMangelAvklart(m.id)}
+                    className={`cursor-pointer rounded-lg border p-3 transition ${
+                      m.avklart
+                        ? 'border-emerald-700/60 bg-emerald-950/30 text-emerald-300 opacity-60'
+                        : m.alvorlighetsgrad === 'kritisk'
+                        ? 'border-rose-700/80 bg-rose-950/40 text-rose-200'
+                        : 'border-amber-700/70 bg-amber-950/30 text-amber-200'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-bold">
+                        {m.avklart ? '✓ ' : m.alvorlighetsgrad === 'kritisk' ? '🚨 ' : '⚠️ '}
+                        {m.tittel}
+                      </span>
+                      <span
+                        className={`text-[10px] uppercase font-extrabold px-1.5 py-0.5 rounded ${
+                          m.avklart
+                            ? 'bg-emerald-900 text-emerald-200'
+                            : m.alvorlighetsgrad === 'kritisk'
+                            ? 'bg-rose-900 text-rose-200'
+                            : 'bg-amber-900 text-amber-200'
+                        }`}
+                      >
+                        {m.avklart ? 'Avklart' : m.alvorlighetsgrad}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] opacity-90 leading-relaxed">{m.beskrivelse}</p>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                    <span className="font-bold text-amber-400">1. Koter &amp; Avløpsfall:</span> Kommunale stikkledningskoter (IBR/ITR) mangler. Nødvendig for å sikre tilstrekkelig selvfall og unngå tilbakeslag.
+                  </div>
+                  <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                    <span className="font-bold text-amber-400">2. Vannmåler &amp; Tilbakeslag:</span> Plassering av hovedstoppekran og kategori 4 tilbakeslagssikring er ikke angitt.
+                  </div>
+                  <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                    <span className="font-bold text-amber-400">3. El-kapasitet (Sikringsskap):</span> Byggets spenning og hovedsikring må bekreftes mot varmepumpens spisslast.
+                  </div>
+                  <div className="rounded-lg border border-slate-700 bg-slate-950/60 p-3">
+                    <span className="font-bold text-amber-400">4. Overvann &amp; Drenering:</span> Kommunale fordrøyningskrav må avklares før utvendige rør prissettes.
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -853,11 +994,11 @@ ${bedriftsNavn}`;
                     <th className="py-2.5 px-3 text-right">Innpris</th>
                     <th className="py-2.5 px-3 text-right">Utpris</th>
                     <th className="py-2.5 px-3 text-right">Sum Ut</th>
-                    <th className="py-2.5 px-2 text-center">Slett</th>
+                    <th className="py-2.5 px-2 text-center">Handling</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/70">
-                  {items.map((item) => {
+                  {items.map((item, idx) => {
                     const ut = beregnUtpris(item.innpris, item.kategori);
                     const sumUt = ut * Math.max(0, item.antall);
                     return (
@@ -901,13 +1042,33 @@ ${bedriftsNavn}`;
                           {sumUt.toLocaleString('no-NO')} kr
                         </td>
                         <td className="py-2.5 px-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => slettVarepost(item.id)}
-                            className="rounded p-1 text-slate-500 hover:text-rose-400"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handterFlyttVare(idx, 'opp')}
+                              disabled={idx === 0}
+                              title="Flytt varepost opp"
+                              className="rounded p-1 text-slate-400 hover:text-white disabled:opacity-20"
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handterFlyttVare(idx, 'ned')}
+                              disabled={idx === items.length - 1}
+                              title="Flytt varepost ned"
+                              className="rounded p-1 text-slate-400 hover:text-white disabled:opacity-20"
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => slettVarepost(item.id)}
+                              className="rounded p-1 text-slate-500 hover:text-rose-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -926,7 +1087,11 @@ ${bedriftsNavn}`;
                     type="number"
                     min="0"
                     value={antallTimer}
-                    onChange={(e) => setAntallTimer(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                      if (projectCtx) projectCtx.oppdaterTimeverk({ antallTimer: val });
+                      else setLokalAntallTimer(val);
+                    }}
                     className="w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-center text-xs font-bold text-white"
                   />
                   <span className="text-xs text-slate-400">t @ {timeprisUt} kr/t</span>
@@ -935,7 +1100,11 @@ ${bedriftsNavn}`;
                     type="number"
                     min="0"
                     value={timeSelvkost}
-                    onChange={(e) => setTimeSelvkost(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                      if (projectCtx) projectCtx.oppdaterTimeverk({ timeSelvkost: val });
+                      else setLokalTimeSelvkost(val);
+                    }}
                     className="w-14 rounded border border-slate-700 bg-slate-900 px-1 py-0.5 text-center text-xs text-slate-300"
                     title="Selvkost rørlegger kr/t"
                   />
@@ -951,7 +1120,10 @@ ${bedriftsNavn}`;
                   <input
                     type="checkbox"
                     checked={systemRabattAktiv}
-                    onChange={() => setSystemRabattAktiv(!systemRabattAktiv)}
+                    onChange={() => {
+                      if (projectCtx) projectCtx.settSystemRabattAktiv(!systemRabattAktiv);
+                      else setLokalSystemRabatt(!systemRabattAktiv);
+                    }}
                     className="h-4 w-4 rounded text-blue-600"
                   />
                   <div>

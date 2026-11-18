@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   CheckCircle,
   Download,
@@ -12,20 +12,31 @@ import {
   Trash2,
   ArrowUpDown,
   Coins,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { tomtProsjekt, type ProsjektData } from '../data/prosjekter';
 import type { CompanyProfile } from '../lib/auth';
 import TilbudsPdfModal from './TilbudsPdfModal';
+import { useProject } from '../context/ProjectContext';
+import {
+  NRF_VAREKATALOG,
+  INITIAL_ORDER_DATA,
+  synkroniserOrdreMedProsjekt,
+  beregnUtpris,
+  genererVarelisteForProsjekt,
+  type OrderItem,
+  type KalkyleProsjektType,
+} from '../lib/kalkyleKatalog';
 
-export interface OrderItem {
-  id: number;
-  nrf: string;
-  beskrivelse: string;
-  antall: number;
-  enhet: string;
-  innpris: number;
-  kategori: 'Lokkeand' | 'Mester-tillegg';
-}
+export {
+  NRF_VAREKATALOG,
+  INITIAL_ORDER_DATA,
+  synkroniserOrdreMedProsjekt,
+  beregnUtpris,
+  type OrderItem,
+  type KalkyleProsjektType,
+};
 
 export interface QAProps {
   prosjekt?: ProsjektData;
@@ -35,215 +46,6 @@ export interface QAProps {
   onApproveToPdf?: (items: OrderItem[], sum: number) => void;
   melding?: (tekst: string) => void;
   onLukk?: () => void;
-}
-
-/**
- * Offisielt NRF Vareoppslagsverk for VVS KEM PRO
- * Standardiserte NRF-produkter med teknisk beskrivelse, grossist-innpris og margin-kategori
- */
-export const NRF_VAREKATALOG: Record<
-  string,
-  { beskrivelse: string; enhet: string; innpris: number; kategori: 'Lokkeand' | 'Mester-tillegg' }
-> = {
-  '6190013': {
-    beskrivelse: 'Geberit Duofix Vegghengt WC-sisterne komplett',
-    enhet: 'stk',
-    innpris: 3800,
-    kategori: 'Lokkeand',
-  },
-  '4290154': {
-    beskrivelse: 'Porsgrund Glow Servant med underskap',
-    enhet: 'stk',
-    innpris: 4200,
-    kategori: 'Lokkeand',
-  },
-  '8361001': {
-    beskrivelse: 'Luft-vann varmepumpe 8kW systempakke',
-    enhet: 'stk',
-    innpris: 62000,
-    kategori: 'Lokkeand',
-  },
-  '5083705': {
-    beskrivelse: 'Roth MultiPex rør-i-rør 20mm (Hovedledning inntak/fordeler)',
-    enhet: 'm',
-    innpris: 54,
-    kategori: 'Mester-tillegg',
-  },
-  '5083703': {
-    beskrivelse: 'Roth MultiPex rør-i-rør 16mm (Tappevannskurser)',
-    enhet: 'm',
-    innpris: 38,
-    kategori: 'Mester-tillegg',
-  },
-  '8370003': {
-    beskrivelse: 'Roth X-PERT S5 gulvvarmerør 16x2.0mm diffusjonstett',
-    enhet: 'm',
-    innpris: 24,
-    kategori: 'Mester-tillegg',
-  },
-  '5118712': {
-    beskrivelse: 'Roth fordelerskap universal 550mm komplett m/ramme og dør',
-    enhet: 'stk',
-    innpris: 3450,
-    kategori: 'Mester-tillegg',
-  },
-  '5118805': {
-    beskrivelse: 'Roth QuickBox veggboks 16mm x 1/2"',
-    enhet: 'stk',
-    innpris: 295,
-    kategori: 'Mester-tillegg',
-  },
-  '5621414': {
-    beskrivelse: 'Cimberio kuleventil 3/4" m/hendel (Hovedavstengning)',
-    enhet: 'stk',
-    innpris: 320,
-    kategori: 'Mester-tillegg',
-  },
-  '5621404': {
-    beskrivelse: 'Cimberio kuleventil 1/2" m/hendel (Avstengningsventil kurser)',
-    enhet: 'stk',
-    innpris: 195,
-    kategori: 'Mester-tillegg',
-  },
-  '2213316': {
-    beskrivelse: 'Wavin AS+ Støydempet avløpsrør 110x1000mm',
-    enhet: 'stk',
-    innpris: 410,
-    kategori: 'Mester-tillegg',
-  },
-  '2213233': {
-    beskrivelse: 'Wavin AS+ Støydempet avløpsrør 75x1000mm',
-    enhet: 'stk',
-    innpris: 310,
-    kategori: 'Mester-tillegg',
-  },
-  '2213133': {
-    beskrivelse: 'Wavin AS+ Støydempet avløpsrør 50x1000mm',
-    enhet: 'stk',
-    innpris: 220,
-    kategori: 'Mester-tillegg',
-  },
-  '2213346': {
-    beskrivelse: 'Wavin AS+ Avløpsbend 110mm 45°',
-    enhet: 'stk',
-    innpris: 185,
-    kategori: 'Mester-tillegg',
-  },
-  '2213253': {
-    beskrivelse: 'Wavin AS+ Avløpsbend 75mm 45°',
-    enhet: 'stk',
-    innpris: 145,
-    kategori: 'Mester-tillegg',
-  },
-  '2213166': {
-    beskrivelse: 'Wavin AS+ Avløpsbend 50mm 87.5°',
-    enhet: 'stk',
-    innpris: 115,
-    kategori: 'Mester-tillegg',
-  },
-  '2213153': {
-    beskrivelse: 'Wavin AS+ Avløpsbend 50mm 45°',
-    enhet: 'stk',
-    innpris: 110,
-    kategori: 'Mester-tillegg',
-  },
-  '5083812': {
-    beskrivelse: 'Rørklammer med gummiinnlegg (RSK) 16-20mm M8',
-    enhet: 'stk',
-    innpris: 42,
-    kategori: 'Mester-tillegg',
-  },
-  '2213914': {
-    beskrivelse: 'Avløpsklammer med gummiinnlegg 110mm M8/M10',
-    enhet: 'stk',
-    innpris: 78,
-    kategori: 'Mester-tillegg',
-  },
-  '8370781': {
-    beskrivelse: 'Roth Touchline SL 8-kanals trådløs romtermostatsentral',
-    enhet: 'stk',
-    innpris: 4950,
-    kategori: 'Mester-tillegg',
-  },
-  '5648184': {
-    beskrivelse: 'Waterguard+ sentral med trådløse sensorer & magnetventil',
-    enhet: 'stk',
-    innpris: 5400,
-    kategori: 'Mester-tillegg',
-  },
-};
-
-/**
- * 100 % Komplett materiellflyt for enebolig (TP-01)
- * Fra inntak, hovedledning, fordelerskap og rør-i-rør til sanitærutstyr, avløp og festemateriell.
- */
-export const INITIAL_ORDER_DATA: OrderItem[] = [
-  { id: 1, nrf: '6190013', beskrivelse: 'Geberit Duofix Vegghengt WC-sisterne komplett', antall: 3, enhet: 'stk', innpris: 3800, kategori: 'Lokkeand' },
-  { id: 2, nrf: '4290154', beskrivelse: 'Porsgrund Glow Servant med underskap', antall: 2, enhet: 'stk', innpris: 4200, kategori: 'Lokkeand' },
-  { id: 3, nrf: '8361001', beskrivelse: 'Luft-vann varmepumpe 8kW systempakke', antall: 1, enhet: 'stk', innpris: 62000, kategori: 'Lokkeand' },
-  { id: 4, nrf: '5083705', beskrivelse: 'Roth MultiPex rør-i-rør 20mm (Hovedledning inntak/fordeler)', antall: 15, enhet: 'm', innpris: 54, kategori: 'Mester-tillegg' },
-  { id: 5, nrf: '5083703', beskrivelse: 'Roth MultiPex rør-i-rør 16mm (Tappevannskurser)', antall: 75, enhet: 'm', innpris: 38, kategori: 'Mester-tillegg' },
-  { id: 6, nrf: '8370003', beskrivelse: 'Roth X-PERT S5 gulvvarmerør 16x2.0mm diffusjonstett', antall: 120, enhet: 'm', innpris: 24, kategori: 'Mester-tillegg' },
-  { id: 7, nrf: '5118712', beskrivelse: 'Roth fordelerskap universal 550mm komplett m/ramme og dør', antall: 1, enhet: 'stk', innpris: 3450, kategori: 'Mester-tillegg' },
-  { id: 8, nrf: '5118805', beskrivelse: 'Roth QuickBox veggboks 16mm x 1/2"', antall: 8, enhet: 'stk', innpris: 295, kategori: 'Mester-tillegg' },
-  { id: 9, nrf: '5621414', beskrivelse: 'Cimberio kuleventil 3/4" m/hendel (Hovedavstengning)', antall: 2, enhet: 'stk', innpris: 320, kategori: 'Mester-tillegg' },
-  { id: 10, nrf: '5621404', beskrivelse: 'Cimberio kuleventil 1/2" m/hendel (Avstengningsventil kurser)', antall: 4, enhet: 'stk', innpris: 195, kategori: 'Mester-tillegg' },
-  { id: 11, nrf: '2213316', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 110x1000mm', antall: 8, enhet: 'stk', innpris: 410, kategori: 'Mester-tillegg' },
-  { id: 12, nrf: '2213233', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 75x1000mm', antall: 6, enhet: 'stk', innpris: 310, kategori: 'Mester-tillegg' },
-  { id: 13, nrf: '2213133', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 50x1000mm', antall: 5, enhet: 'stk', innpris: 220, kategori: 'Mester-tillegg' },
-  { id: 14, nrf: '2213346', beskrivelse: 'Wavin AS+ Avløpsbend 110mm 45°', antall: 4, enhet: 'stk', innpris: 185, kategori: 'Mester-tillegg' },
-  { id: 15, nrf: '2213253', beskrivelse: 'Wavin AS+ Avløpsbend 75mm 45°', antall: 4, enhet: 'stk', innpris: 145, kategori: 'Mester-tillegg' },
-  { id: 16, nrf: '2213166', beskrivelse: 'Wavin AS+ Avløpsbend 50mm 87.5°', antall: 4, enhet: 'stk', innpris: 115, kategori: 'Mester-tillegg' },
-  { id: 17, nrf: '2213153', beskrivelse: 'Wavin AS+ Avløpsbend 50mm 45°', antall: 4, enhet: 'stk', innpris: 110, kategori: 'Mester-tillegg' },
-  { id: 18, nrf: '5083812', beskrivelse: 'Rørklammer med gummiinnlegg (RSK) 16-20mm M8', antall: 30, enhet: 'stk', innpris: 42, kategori: 'Mester-tillegg' },
-  { id: 19, nrf: '2213914', beskrivelse: 'Avløpsklammer med gummiinnlegg 110mm M8/M10', antall: 8, enhet: 'stk', innpris: 78, kategori: 'Mester-tillegg' },
-  { id: 20, nrf: '8370781', beskrivelse: 'Roth Touchline SL 8-kanals trådløs romtermostatsentral', antall: 1, enhet: 'stk', innpris: 4950, kategori: 'Mester-tillegg' },
-  { id: 21, nrf: '5648184', beskrivelse: 'Waterguard+ sentral med trådløse sensorer & magnetventil', antall: 1, enhet: 'stk', innpris: 5400, kategori: 'Mester-tillegg' }
-];
-
-/**
- * Synkroniserer vareuttaket med prosjektdata (f.eks. sanitærutstyr og gulvvarmeareal)
- */
-export function synkroniserOrdreMedProsjekt(
-  baseItems: OrderItem[] = INITIAL_ORDER_DATA,
-  prosjekt?: ProsjektData
-): OrderItem[] {
-  if (!prosjekt) return baseItems;
-  return baseItems.map((item) => {
-    // Sanitærutstyr: WC
-    if (item.nrf === '6190013' && prosjekt.sanitaerUtstyr?.wc?.antall !== undefined) {
-      return { ...item, antall: Math.max(0, prosjekt.sanitaerUtstyr.wc.antall) };
-    }
-    // Sanitærutstyr: Servant
-    if (item.nrf === '4290154' && prosjekt.sanitaerUtstyr?.servant?.antall !== undefined) {
-      return { ...item, antall: Math.max(0, prosjekt.sanitaerUtstyr.servant.antall) };
-    }
-    // QuickBox Veggbokser: Dynamisk oppdatering hvis sanitærutstyr finnes
-    if (item.nrf === '5118805' && prosjekt.sanitaerUtstyr) {
-      const wc = prosjekt.sanitaerUtstyr.wc?.antall ?? 3;
-      const servant = prosjekt.sanitaerUtstyr.servant?.antall ?? 2;
-      const dusj = prosjekt.sanitaerUtstyr.dusj?.antall ?? 1;
-      const sumBokser = (wc * 1) + (servant * 2) + (dusj * 2);
-      if (sumBokser > 0) {
-        return { ...item, antall: sumBokser };
-      }
-    }
-    // Gulvvarmerør: 5 m rør per m² gulvvarme hvis definert
-    if (item.nrf === '8370003' && prosjekt.varmeanlegg?.gulvvarmeM2 && prosjekt.varmeanlegg.gulvvarmeM2 > 0) {
-      return { ...item, antall: Math.round(prosjekt.varmeanlegg.gulvvarmeM2 * 5) };
-    }
-    return item;
-  });
-}
-
-/**
- * Beregner utpris basert på faglig kalkulasjon:
- * - Lokkeand: 20,0 % dekningsgrad (25 % påslag, faktor 1.25)
- * - Mester-tillegg: 52,4 % dekningsgrad (110 % påslag, faktor 2.10)
- */
-export function beregnUtpris(innpris: number, kategori: 'Lokkeand' | 'Mester-tillegg'): number {
-  const base = Number.isFinite(innpris) ? Math.max(0, innpris) : 0;
-  return kategori === 'Lokkeand' ? Math.round(base * 1.25) : Math.round(base * 2.10);
 }
 
 /**
@@ -376,49 +178,83 @@ export function AhlsellOrderQA({
   melding,
   onLukk,
 }: QAProps) {
-  const [items, setItems] = useState<OrderItem[]>(() => {
+  // Global ProjectContext integration med trygg fallback for isolert testmiljø
+  let projectCtx: ReturnType<typeof useProject> | null = null;
+  try {
+    projectCtx = useProject();
+  } catch {
+    projectCtx = null;
+  }
+
+  // Lokal tilstand som fallback hvis komponenten kjøres utenfor <ProjectProvider>
+  const [lokalItems, setLokalItems] = useState<OrderItem[]>(() => {
     if (initialItems && initialItems.length > 0) return initialItems;
     return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
   });
+  const [lokalProsjektType, setLokalProsjektType] = useState<KalkyleProsjektType>('bolig');
+  const [lokalSystemRabatt, setLokalSystemRabatt] = useState<boolean>(true);
+  const [lokalInkluderTimer, setLokalInkluderTimer] = useState<boolean>(true);
+  const [lokalAntallTimer, setLokalAntallTimer] = useState<number>(65);
+  const [lokalTimeprisUt, setLokalTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
+  const [lokalTimeSelvkost, setLokalTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
 
-  // Hvis initialItems oppdateres utenfra (f.eks. fra delt prosjekttilstand), synkroniser state
+  // Aktive verdier: henter fra context hvis tilgjengelig, ellers lokal state
+  const items = projectCtx ? projectCtx.vareliste : lokalItems;
+  const aktivType = projectCtx ? projectCtx.prosjektType : lokalProsjektType;
+  const systemRabattAktiv = projectCtx ? projectCtx.systemRabattAktiv : lokalSystemRabatt;
+  const inkluderTimer = projectCtx ? projectCtx.timeverk.inkluderTimer : lokalInkluderTimer;
+  const antallTimer = projectCtx ? projectCtx.timeverk.antallTimer : lokalAntallTimer;
+  const timeprisUt = projectCtx ? projectCtx.timeverk.timeprisUt : lokalTimeprisUt;
+  const timeSelvkost = projectCtx ? projectCtx.timeverk.timeSelvkost : lokalTimeSelvkost;
+
+  const [visTilbudsPdfModal, setVisTilbudsPdfModal] = useState<boolean>(false);
+
+  // Hvis initialItems oppdateres utenfra (f.eks. fra delt prosjekttilstand), synkroniser lokal state
   useEffect(() => {
-    if (initialItems && initialItems.length > 0) {
-      setItems(initialItems);
+    if (!projectCtx && initialItems && initialItems.length > 0) {
+      setLokalItems(initialItems);
     }
-  }, [initialItems]);
+  }, [projectCtx, initialItems]);
 
   // Hvis prosjektet endres utenfra (f.eks. ved filopplasting av sanitærutstyr)
   useEffect(() => {
-    if (prosjekt?.sanitaerUtstyr || prosjekt?.varmeanlegg) {
-      setItems((prev) => {
+    if (!projectCtx && (prosjekt?.sanitaerUtstyr || prosjekt?.varmeanlegg)) {
+      setLokalItems((prev) => {
         const ny = synkroniserOrdreMedProsjekt(prev, prosjekt);
         onOppdaterOrdreItems?.(ny);
         return ny;
       });
     }
-  }, [prosjekt?.sanitaerUtstyr, prosjekt?.varmeanlegg]);
-
-  // Hjelpefunksjon for å oppdatere og varsle overordnede komponenter
-  const oppdaterItems = (oppdater: (prev: OrderItem[]) => OrderItem[]) => {
-    setItems((prev) => {
-      const ny = oppdater(prev);
-      onOppdaterOrdreItems?.(ny);
-      return ny;
-    });
-  };
-
-  const [systemRabattAktiv, setSystemRabattAktiv] = useState<boolean>(true);
-  const [inkluderTimer, setInkluderTimer] = useState<boolean>(true);
-  const [antallTimer, setAntallTimer] = useState<number>(65);
-  const [timeprisUt, setTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
-  const [timeSelvkost, setTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
-  const [visTilbudsPdfModal, setVisTilbudsPdfModal] = useState<boolean>(false);
+  }, [projectCtx, prosjekt?.sanitaerUtstyr, prosjekt?.varmeanlegg, onOppdaterOrdreItems]);
 
   useEffect(() => {
-    if (companyProfile?.timeprisUt) setTimeprisUt(companyProfile.timeprisUt);
-    if (companyProfile?.timeSelvkost) setTimeSelvkost(companyProfile.timeSelvkost);
-  }, [companyProfile?.timeprisUt, companyProfile?.timeSelvkost]);
+    if (companyProfile?.timeprisUt) {
+      if (projectCtx) projectCtx.oppdaterTimeverk({ timeprisUt: companyProfile.timeprisUt });
+      else setLokalTimeprisUt(companyProfile.timeprisUt);
+    }
+    if (companyProfile?.timeSelvkost) {
+      if (projectCtx) projectCtx.oppdaterTimeverk({ timeSelvkost: companyProfile.timeSelvkost });
+      else setLokalTimeSelvkost(companyProfile.timeSelvkost);
+    }
+  }, [companyProfile?.timeprisUt, companyProfile?.timeSelvkost, projectCtx]);
+
+  // Hjelpefunksjon for å oppdatere og varsle overordnede komponenter
+  const oppdaterItems = useCallback(
+    (oppdater: (prev: OrderItem[]) => OrderItem[]) => {
+      if (projectCtx) {
+        projectCtx.settVareliste(oppdater);
+        const ny = oppdater(projectCtx.vareliste);
+        onOppdaterOrdreItems?.(ny);
+      } else {
+        setLokalItems((prev) => {
+          const ny = oppdater(prev);
+          onOppdaterOrdreItems?.(ny);
+          return ny;
+        });
+      }
+    },
+    [projectCtx, onOppdaterOrdreItems]
+  );
 
   // Ny varepost skjema-state
   const [visNyVare, setVisNyVare] = useState<boolean>(false);
@@ -444,24 +280,79 @@ export function AhlsellOrderQA({
   const handleQuantityChange = (id: number, nyttAntall: string) => {
     const parsed = parseInt(nyttAntall, 10);
     const verdi = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
-    oppdaterItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
+    if (projectCtx) {
+      projectCtx.oppdaterVareAntall(id, verdi);
+      onOppdaterOrdreItems?.(projectCtx.vareliste.map((i) => (i.id === id ? { ...i, antall: verdi } : i)));
+    } else {
+      oppdaterItems((prev) => prev.map((item) => (item.id === id ? { ...item, antall: verdi } : item)));
+    }
   };
 
   const toggleKategori = (id: number) => {
-    oppdaterItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              kategori: item.kategori === 'Lokkeand' ? 'Mester-tillegg' : 'Lokkeand',
-            }
-          : item
-      )
-    );
+    if (projectCtx) {
+      projectCtx.toggleVareKategori(id);
+      onOppdaterOrdreItems?.(
+        projectCtx.vareliste.map((i) =>
+          i.id === id ? { ...i, kategori: i.kategori === 'Lokkeand' ? 'Mester-tillegg' : 'Lokkeand' } : i
+        )
+      );
+    } else {
+      oppdaterItems((prev) =>
+        prev.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                kategori: item.kategori === 'Lokkeand' ? 'Mester-tillegg' : 'Lokkeand',
+              }
+            : item
+        )
+      );
+    }
   };
 
   const slettVarepost = (id: number) => {
-    oppdaterItems((prev) => prev.filter((item) => item.id !== id));
+    if (projectCtx) {
+      projectCtx.slettVare(id);
+      onOppdaterOrdreItems?.(projectCtx.vareliste.filter((i) => i.id !== id));
+    } else {
+      oppdaterItems((prev) => prev.filter((item) => item.id !== id));
+    }
+  };
+
+  const handterFlyttVare = (index: number, retning: 'opp' | 'ned') => {
+    if (projectCtx) {
+      projectCtx.flyttVare(index, retning);
+    } else {
+      oppdaterItems((prev) => {
+        const ny = [...prev];
+        const target = retning === 'opp' ? index - 1 : index + 1;
+        if (target < 0 || target >= ny.length) return ny;
+        const temp = ny[index];
+        ny[index] = ny[target];
+        ny[target] = temp;
+        return ny;
+      });
+    }
+  };
+
+  const handterEndreType = (nyType: KalkyleProsjektType) => {
+    if (projectCtx) {
+      projectCtx.settProsjektType(nyType);
+    } else {
+      setLokalProsjektType(nyType);
+      const nyVareliste = genererVarelisteForProsjekt(prosjekt ?? tomtProsjekt('temp'), nyType);
+      setLokalItems(nyVareliste);
+      onOppdaterOrdreItems?.(nyVareliste);
+    }
+    const typeNavn =
+      nyType === 'sprinkler'
+        ? 'Sprinkleranlegg (NS-EN 12845)'
+        : nyType === 'naering'
+        ? 'Næringsbygg'
+        : nyType === 'kombi'
+        ? 'Kombinasjonsbygg'
+        : 'Enebolig (TP-01)';
+    melding?.(`🔄 Anleggstype endret til ${typeNavn} – varelisten er tilpasset!`);
   };
 
   const leggTilVarepost = () => {
@@ -478,7 +369,12 @@ export function AhlsellOrderQA({
       innpris: Math.max(0, nyInnpris || 0),
       kategori: nyKategori,
     };
-    oppdaterItems((prev) => [...prev, nyPost]);
+    if (projectCtx) {
+      projectCtx.leggTilVare(nyPost);
+      onOppdaterOrdreItems?.([...projectCtx.vareliste, nyPost]);
+    } else {
+      oppdaterItems((prev) => [...prev, nyPost]);
+    }
     setNyNrf('');
     setNyBeskrivelse('');
     setNyAntall(1);
@@ -487,39 +383,50 @@ export function AhlsellOrderQA({
     melding?.(`✅ Ny varepost "${nyPost.beskrivelse}" lagt til!`);
   };
 
-  // Beregninger
-  const materiellInnkjop = useMemo(() => {
-    return items.reduce((sum, item) => sum + Math.max(0, item.innpris) * Math.max(0, item.antall), 0);
-  }, [items]);
-
-  const materiellUtprisRaa = useMemo(() => {
-    return items.reduce(
+  // Beregninger (bruker sentrale tall fra context for 100 % konsistens, eller beregner lokalt)
+  const totals = useMemo(() => {
+    if (projectCtx) {
+      return projectCtx.kalkyleTotals;
+    }
+    const matInn = items.reduce((sum, item) => sum + Math.max(0, item.innpris) * Math.max(0, item.antall), 0);
+    const matUtRaa = items.reduce(
       (sum, item) => sum + beregnUtpris(item.innpris, item.kategori) * Math.max(0, item.antall),
       0
     );
-  }, [items]);
+    const rabatt = systemRabattAktiv ? Math.round(matUtRaa * 0.05) : 0;
+    const matNetto = matUtRaa - rabatt;
 
-  const rabattBelop = useMemo(() => {
-    return systemRabattAktiv ? Math.round(materiellUtprisRaa * 0.05) : 0;
-  }, [systemRabattAktiv, materiellUtprisRaa]);
+    const tKost = inkluderTimer ? Math.max(0, antallTimer) * Math.max(0, timeSelvkost) : 0;
+    const tSalg = inkluderTimer ? Math.max(0, antallTimer) * Math.max(0, timeprisUt) : 0;
 
-  const materiellUtprisNetto = materiellUtprisRaa - rabattBelop;
+    const totKost = matInn + tKost;
+    const totEksMva = matNetto + tSalg;
+    const dgBelop = totEksMva - totKost;
+    const dgProsent = totEksMva > 0 ? ((dgBelop / totEksMva) * 100).toFixed(1) : '0.0';
 
-  const timerKostTotal = useMemo(() => {
-    return inkluderTimer ? Math.max(0, antallTimer) * Math.max(0, timeSelvkost) : 0;
-  }, [inkluderTimer, antallTimer, timeSelvkost]);
+    return {
+      materiellInnkjop: matInn,
+      materiellUtprisRaa: matUtRaa,
+      rabattBelop: rabatt,
+      materiellNetto: matNetto,
+      timerSum: tSalg,
+      timerKost: tKost,
+      totalEksMva: totEksMva,
+      totalKost: totKost,
+      totalDGBelop: dgBelop,
+      totalDGProsent: dgProsent,
+      mva: Math.round(totEksMva * 0.25),
+      totalInklMva: totEksMva + Math.round(totEksMva * 0.25),
+      enovaTilskudd: aktivType === 'bolig' ? 10000 : 0,
+      nettoInvestering: totEksMva + Math.round(totEksMva * 0.25) - (aktivType === 'bolig' ? 10000 : 0),
+    };
+  }, [projectCtx, items, systemRabattAktiv, inkluderTimer, antallTimer, timeSelvkost, timeprisUt, aktivType]);
 
-  const timerSalgTotal = useMemo(() => {
-    return inkluderTimer ? Math.max(0, antallTimer) * Math.max(0, timeprisUt) : 0;
-  }, [inkluderTimer, antallTimer, timeprisUt]);
-
-  const totalInnkjopOgKost = materiellInnkjop + timerKostTotal;
-  const totalTilbudssumEksMva = materiellUtprisNetto + timerSalgTotal;
-  const totalDGBelop = totalTilbudssumEksMva - totalInnkjopOgKost;
-  const totalDGProsent = useMemo(() => {
-    if (totalTilbudssumEksMva <= 0) return '0.0';
-    return ((totalDGBelop / totalTilbudssumEksMva) * 100).toFixed(1);
-  }, [totalDGBelop, totalTilbudssumEksMva]);
+  const rabattBelop = totals.rabattBelop;
+  const timerSalgTotal = totals.timerSum;
+  const totalTilbudssumEksMva = totals.totalEksMva;
+  const totalDGBelop = totals.totalDGBelop;
+  const totalDGProsent = totals.totalDGProsent;
 
   const eksporterCSV = (format: 'm3' | 'tripletex' | 'holte' | 'qa') => {
     let csvInnhold = '';
@@ -592,6 +499,33 @@ export function AhlsellOrderQA({
           <p className="mt-1 text-xs text-slate-400">
             Kvalitetssikret for Ahlsell M3, Tripletex og Holte SmartKalk. Sikrer 20 % dekningsgrad på lokkevarer og 52,4 % på rør og deler.
           </p>
+
+          {/* Anleggstype-velger for dynamisk krysstale */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-slate-400 mr-1">Anleggstype:</span>
+            {[
+              { id: 'bolig', label: '🏠 Bolig (TP-01)' },
+              { id: 'naering', label: '🏢 Næringsbygg' },
+              { id: 'sprinkler', label: '🧯 Sprinkler (NS-EN 12845)' },
+              { id: 'kombi', label: '🏙️ Kombinasjonsbygg' },
+            ].map((t) => {
+              const valgt = aktivType === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handterEndreType(t.id as KalkyleProsjektType)}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-lg border transition ${
+                    valgt
+                      ? 'bg-blue-600 text-white border-blue-400 shadow-md'
+                      : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 sm:gap-5 rounded-lg border border-slate-600 bg-slate-800 p-3 sm:text-right">
@@ -633,7 +567,10 @@ export function AhlsellOrderQA({
           <input
             type="checkbox"
             checked={inkluderTimer}
-            onChange={() => setInkluderTimer(!inkluderTimer)}
+            onChange={() => {
+              if (projectCtx) projectCtx.oppdaterTimeverk({ inkluderTimer: !inkluderTimer });
+              else setLokalInkluderTimer(!inkluderTimer);
+            }}
             className="h-5 w-5 rounded text-blue-600 focus:ring-0"
           />
           <span className="flex items-center gap-1.5 text-sm font-bold text-white">
@@ -650,7 +587,11 @@ export function AhlsellOrderQA({
                 type="number"
                 min="0"
                 value={antallTimer}
-                onChange={(e) => setAntallTimer(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                onChange={(e) => {
+                  const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                  if (projectCtx) projectCtx.oppdaterTimeverk({ antallTimer: val });
+                  else setLokalAntallTimer(val);
+                }}
                 className="w-16 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-center text-sm font-bold text-white focus:border-blue-500 focus:outline-none"
               />
             </div>
@@ -660,7 +601,11 @@ export function AhlsellOrderQA({
                 type="number"
                 min="0"
                 value={timeSelvkost}
-                onChange={(e) => setTimeSelvkost(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                onChange={(e) => {
+                  const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                  if (projectCtx) projectCtx.oppdaterTimeverk({ timeSelvkost: val });
+                  else setLokalTimeSelvkost(val);
+                }}
                 className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-center text-sm font-bold text-slate-300 focus:border-blue-500 focus:outline-none"
                 title="Selvkost per rørleggertime (kr)"
               />
@@ -672,7 +617,11 @@ export function AhlsellOrderQA({
                 type="number"
                 min="0"
                 value={timeprisUt}
-                onChange={(e) => setTimeprisUt(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                onChange={(e) => {
+                  const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                  if (projectCtx) projectCtx.oppdaterTimeverk({ timeprisUt: val });
+                  else setLokalTimeprisUt(val);
+                }}
                 className="w-20 rounded border border-slate-600 bg-slate-800 px-2 py-1 text-center text-sm font-bold text-amber-400 focus:border-blue-500 focus:outline-none"
                 title="Utpris til kunde per time (kr)"
               />
@@ -810,7 +759,7 @@ export function AhlsellOrderQA({
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 text-xs sm:text-sm">
-            {items.map((item) => {
+            {items.map((item, idx) => {
               const utpris = beregnUtpris(item.innpris, item.kategori);
               const sumUt = utpris * Math.max(0, item.antall);
               return (
@@ -855,14 +804,34 @@ export function AhlsellOrderQA({
                     {sumUt.toLocaleString('no-NO')} kr
                   </td>
                   <td className="py-3 px-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => slettVarepost(item.id)}
-                      title="Slett varepost"
-                      className="rounded p-1 text-slate-500 transition hover:bg-rose-950 hover:text-rose-400"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handterFlyttVare(idx, 'opp')}
+                        disabled={idx === 0}
+                        title="Flytt varepost opp"
+                        className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent"
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handterFlyttVare(idx, 'ned')}
+                        disabled={idx === items.length - 1}
+                        title="Flytt varepost ned"
+                        className="rounded p-1 text-slate-400 hover:bg-slate-700 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent"
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => slettVarepost(item.id)}
+                        title="Slett varepost"
+                        className="rounded p-1 text-slate-500 transition hover:bg-rose-950 hover:text-rose-400"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -877,7 +846,10 @@ export function AhlsellOrderQA({
           <input
             type="checkbox"
             checked={systemRabattAktiv}
-            onChange={() => setSystemRabattAktiv(!systemRabattAktiv)}
+            onChange={() => {
+              if (projectCtx) projectCtx.settSystemRabattAktiv(!systemRabattAktiv);
+              else setLokalSystemRabatt(!systemRabattAktiv);
+            }}
             className="h-5 w-5 rounded text-blue-600 focus:ring-0"
           />
           <div>
