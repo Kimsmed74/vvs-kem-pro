@@ -19,6 +19,7 @@ import {
   ArrowUpDown,
   Trash2,
   Plus,
+  Sparkles,
 } from 'lucide-react';
 import type { ProsjektData } from './data/prosjekter';
 import {
@@ -38,9 +39,13 @@ import {
   type OrderItem,
 } from './components/AhlsellOrderQA';
 import { lastNedTekst } from './lib/format';
+import type { CompanyProfile, UserRole } from './lib/auth';
+import TilbudsPdfModal from './components/TilbudsPdfModal';
 
 interface RorleggerExpressProps {
   prosjekt: ProsjektData;
+  companyProfile?: CompanyProfile;
+  userRole?: UserRole;
   initialItems?: OrderItem[];
   onOppdaterOrdreItems?: (items: OrderItem[]) => void;
   onOppdaterProsjekt: (prosjekt: ProsjektData, endringer?: string[]) => void;
@@ -51,6 +56,8 @@ interface RorleggerExpressProps {
 
 export default function RorleggerExpressView({
   prosjekt,
+  companyProfile,
+  userRole,
   initialItems,
   onOppdaterOrdreItems,
   onOppdaterProsjekt,
@@ -63,11 +70,20 @@ export default function RorleggerExpressView({
 
   // Steg 1 inndata
   const [prosjektType, setProsjektType] = useState<'rehab' | 'tek17'>('rehab');
-  const [bedriftsNavn, setBedriftsNavn] = useState<string>('Rørleggerbedriften AS');
-  const [timeprisUt, setTimeprisUt] = useState<number>(1150);
+  const [bedriftsNavn, setBedriftsNavn] = useState<string>(
+    () => companyProfile?.firmanavn ?? 'Rørleggerbedriften AS'
+  );
+  const [timeprisUt, setTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
   const [antallTimer, setAntallTimer] = useState<number>(65);
-  const [timeSelvkost, setTimeSelvkost] = useState<number>(550);
+  const [timeSelvkost, setTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
   const [systemRabattAktiv, setSystemRabattAktiv] = useState<boolean>(true);
+  const [visTilbudsPdfModal, setVisTilbudsPdfModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (companyProfile?.firmanavn) setBedriftsNavn(companyProfile.firmanavn);
+    if (companyProfile?.timeprisUt) setTimeprisUt(companyProfile.timeprisUt);
+    if (companyProfile?.timeSelvkost) setTimeSelvkost(companyProfile.timeSelvkost);
+  }, [companyProfile?.firmanavn, companyProfile?.timeprisUt, companyProfile?.timeSelvkost]);
 
   // Filopplasting & analyse state
   const [drarOver, setDrarOver] = useState<boolean>(false);
@@ -375,6 +391,10 @@ ${bedriftsNavn}`;
   };
 
   const sendTilMesterForKontroll = () => {
+    if (userRole === 'rorlegger_kunde') {
+      melding('🚀 Saken og underlaget er overført til Mester & Ingeniør for teknisk kontroll og TEK17-sikring!');
+      return;
+    }
     onByttModus('full');
     if (onApneFullQA) onApneFullQA();
     melding('🚀 Prosjektet er overført til Mester & Ingeniør for full teknisk kontroll!');
@@ -1131,6 +1151,13 @@ ${bedriftsNavn}`;
                 >
                   Forhåndsvis
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setVisTilbudsPdfModal(true)}
+                  className="col-span-2 min-h-[44px] inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 text-xs font-bold text-white shadow-lg transition hover:from-emerald-500 hover:to-teal-500"
+                >
+                  <Sparkles className="h-4 w-4" /> Generer A4 Tilbuds-PDF m/Logo
+                </button>
               </div>
             </div>
 
@@ -1215,9 +1242,35 @@ ${bedriftsNavn}`;
               >
                 <Copy className="h-4 w-4" /> {kopiertTilbudStatus ? 'Kopiert!' : 'Kopier tilbudstekst'}
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setVisTilbudBrevModal(false);
+                  setVisTilbudsPdfModal(true);
+                }}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-bold text-white hover:from-emerald-500 hover:to-teal-500 shadow"
+              >
+                <Sparkles className="h-4 w-4" /> Åpne A4 Tilbuds-PDF
+              </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* A4 Tilbuds-PDF Modal */}
+      {visTilbudsPdfModal && (
+        <TilbudsPdfModal
+          prosjekt={prosjekt}
+          items={items}
+          company={companyProfile}
+          antallTimer={antallTimer}
+          timeprisUt={timeprisUt}
+          systemRabattAktiv={systemRabattAktiv}
+          prosjektType={prosjektType}
+          isOpen={visTilbudsPdfModal}
+          onClose={() => setVisTilbudsPdfModal(false)}
+          melding={melding}
+        />
       )}
     </div>
   );

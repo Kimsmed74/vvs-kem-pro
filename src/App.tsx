@@ -47,6 +47,13 @@ import {
   type KalkulatorTilstand,
   type OverstyringInfo,
 } from './lib/lagring';
+import {
+  hentAktivSesjon,
+  loggUt,
+  type AuthSession,
+} from './lib/auth';
+const AuthPortal = lazy(() => import('./AuthPortal'));
+const CompanyProfileModal = lazy(() => import('./CompanyProfileModal'));
 const AhlsellOrderQA = lazy(() => import('./components/AhlsellOrderQA'));
 const RorleggerExpressView = lazy(() => import('./RorleggerExpressView'));
 const Sanitaer = lazy(() => import('./components/modules/01_sanitaer'));
@@ -93,6 +100,11 @@ export default function App() {
 
 function AppInnhold() {
   const bekreftSlett = useBekreftSlett();
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
+    typeof window !== 'undefined' ? hentAktivSesjon() : null
+  );
+  const [visProfilModal, setVisProfilModal] = useState<boolean>(false);
+
   const [tilstand, setTilstand] = useState<AppTilstand>(() =>
     typeof window !== 'undefined' && window.localStorage
       ? lastTilstand(window.localStorage)
@@ -105,9 +117,25 @@ function AppInnhold() {
       : { geminiNokkel: '', modell: 'gemini-2.5-flash' }
   );
 
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const melding = useCallback((tekst: string) => {
+    setToast(tekst);
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3500);
+  }, []);
+
   // Modus: 'full' (Mester & Ingeniør) vs. 'express' (Rørlegger Express / Kundemodus)
   const [appModus, setAppModus] = useState<'full' | 'express'>(() => {
     if (typeof window !== 'undefined') {
+      const sess = hentAktivSesjon();
+      if (sess?.user.rolle === 'rorlegger_kunde') return 'express';
       const params = new URLSearchParams(window.location.search);
       const m = params.get('mode') || params.get('modus');
       if (m === 'express' || m === 'kunde') return 'express';
@@ -119,6 +147,10 @@ function AppInnhold() {
   });
 
   const byttModus = useCallback((nyModus: 'full' | 'express') => {
+    if (authSession?.user.rolle === 'rorlegger_kunde' && nyModus === 'full') {
+      melding('🔒 Rørlegger Express-konto er låst til kundemodus. Logg inn som Mester & Ingeniør (Admin) for full tilgang.');
+      return;
+    }
     setAppModus(nyModus);
     if (typeof window !== 'undefined') {
       window.localStorage?.setItem('vvs_kem_pro_modus', nyModus);
@@ -131,11 +163,16 @@ function AppInnhold() {
       }
       window.history.replaceState({}, '', url.toString());
     }
-  }, []);
+  }, [authSession?.user.rolle, melding]);
+
+  useEffect(() => {
+    if (authSession?.user.rolle === 'rorlegger_kunde' && appModus !== 'express') {
+      byttModus('express');
+    }
+  }, [authSession?.user.rolle, appModus, byttModus]);
 
   const [visning, setVisningState] = useState<HovedVisning>({ type: 'agent_hub' });
   const [mobilMenyApen, setMobilMenyApen] = useState<boolean>(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [visAlleAgenterISidebar, setVisAlleAgenterISidebar] = useState<boolean>(true);
 
   const setVisning = useCallback((ny: HovedVisning) => {
@@ -158,20 +195,8 @@ function AppInnhold() {
 
   const importJsonInputRef = useRef<HTMLInputElement>(null);
   const harHydrertIdbRef = useRef<boolean>(false);
-  const toastTimerRef = useRef<number | null>(null);
   const tilstandRef = useRef<AppTilstand>(tilstand);
   tilstandRef.current = tilstand;
-
-  const melding = useCallback((tekst: string) => {
-    setToast(tekst);
-    if (toastTimerRef.current !== null) {
-      window.clearTimeout(toastTimerRef.current);
-    }
-    toastTimerRef.current = window.setTimeout(() => {
-      setToast(null);
-      toastTimerRef.current = null;
-    }, 3500);
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -846,6 +871,38 @@ function AppInnhold() {
     </>
   );
 
+  if (!authSession) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100">
+        <Suspense
+          fallback={
+            <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
+              Laster påloggingsportal…
+            </div>
+          }
+        >
+          <AuthPortal
+            onLoginSuccess={(sess) => {
+              setAuthSession(sess);
+              if (sess.user.rolle === 'rorlegger_kunde') {
+                byttModus('express');
+              }
+              melding(`Velkommen, ${sess.user.navn}! Logget inn for ${sess.company.firmanavn}.`);
+            }}
+          />
+        </Suspense>
+        {toast && (
+          <div
+            role="status"
+            className="fixed bottom-6 right-4 left-4 z-50 rounded-lg border-l-4 border-emerald-500 bg-slate-900 px-4 py-3 text-sm font-semibold text-slate-100 shadow-2xl sm:left-auto sm:right-5"
+          >
+            {toast}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
       {/* Sidebar for Desktop (lg+) */}
@@ -1006,34 +1063,95 @@ function AppInnhold() {
               </div>
 
               {/* Modus-bryter i toppnavigasjon: Mester & Ingeniør (Full) vs. Rørlegger Express (Kunde) */}
-              <div className="inline-flex shrink-0 items-center rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => byttModus('full')}
-                  aria-pressed={appModus === 'full'}
-                  title="Mester & Ingeniør: Full tilgang til alle 19 agenter, moduler og Gatekeeper QA"
-                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                    appModus === 'full'
-                      ? 'border border-emerald-500/50 bg-emerald-700 text-white shadow-md'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <span>🎓</span>
-                  <span>Mester &amp; Ingeniør (Full)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => byttModus('express')}
-                  aria-pressed={appModus === 'express'}
-                  title="Rørlegger Express: Strømlinjeformet 3-stegs kundemodus for hurtigkalkyle og bestilling"
-                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
-                    appModus === 'express'
-                      ? 'border border-blue-500/50 bg-blue-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
+              {authSession.user.rolle === 'mester_admin' ? (
+                <div className="inline-flex shrink-0 items-center rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => byttModus('full')}
+                    aria-pressed={appModus === 'full'}
+                    title="Mester & Ingeniør: Full tilgang til alle 19 agenter, moduler og Gatekeeper QA"
+                    className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                      appModus === 'full'
+                        ? 'border border-emerald-500/50 bg-emerald-700 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>🎓</span>
+                    <span>Mester &amp; Ingeniør (Full)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => byttModus('express')}
+                    aria-pressed={appModus === 'express'}
+                    title="Rørlegger Express: Strømlinjeformet 3-stegs kundemodus for hurtigkalkyle og bestilling"
+                    className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                      appModus === 'express'
+                        ? 'border border-blue-500/50 bg-blue-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>⚡</span>
+                    <span>Rørlegger Express (Kunde)</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-blue-600/40 bg-blue-950/60 px-3 py-1.5 text-xs font-bold text-blue-200 shadow-inner">
                   <span>⚡</span>
                   <span>Rørlegger Express (Kunde)</span>
+                </div>
+              )}
+
+              {/* Bedriftsprofil & Logg ut */}
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVisProfilModal(true)}
+                  title={`Rediger bedriftsprofil og timepriser for ${authSession.company.firmanavn}`}
+                  className="inline-flex min-h-[38px] items-center gap-2 rounded-xl border border-slate-700 bg-slate-800/90 px-2.5 py-1 text-xs text-slate-200 transition hover:border-slate-500 hover:bg-slate-700"
+                >
+                  {authSession.company.logoBase64 ? (
+                    <img
+                      src={authSession.company.logoBase64}
+                      alt="Firmalogo"
+                      className="h-6 max-w-[60px] object-contain rounded"
+                    />
+                  ) : (
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-950 border border-emerald-700/60 text-xs font-bold text-emerald-400">
+                      🏢
+                    </span>
+                  )}
+                  <div className="text-left hidden md:block">
+                    <div className="flex items-center gap-1.5 leading-tight">
+                      <span className="font-bold text-slate-100 max-w-[130px] truncate">
+                        {authSession.company.firmanavn}
+                      </span>
+                      <span
+                        className={`rounded px-1.5 py-0.2 text-[10px] font-bold ${
+                          authSession.user.rolle === 'mester_admin'
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/50'
+                            : 'bg-blue-950 text-blue-300 border border-blue-700/50'
+                        }`}
+                      >
+                        {authSession.user.rolle === 'mester_admin' ? 'Mester' : 'Kunde'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 max-w-[130px] truncate">
+                      {authSession.user.navn} · {authSession.company.timeprisUt} kr/t
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    loggUt();
+                    setAuthSession(null);
+                    melding('👋 Du er nå logget ut.');
+                  }}
+                  title="Logg ut av VVS KEM PRO"
+                  className="inline-flex min-h-[38px] items-center rounded-xl border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-semibold text-rose-300 transition hover:border-rose-700 hover:bg-rose-950/60"
+                >
+                  Logg ut
                 </button>
               </div>
             </div>
@@ -1151,6 +1269,8 @@ function AppInnhold() {
               <RorleggerExpressView
                 key={prosjekt.id}
                 prosjekt={prosjekt}
+                companyProfile={authSession.company}
+                userRole={authSession.user.rolle}
                 initialItems={prosjektTilstand.ordreItems}
                 onOppdaterOrdreItems={(nyItems) =>
                   oppdaterProsjektTilstand((t) => ({ ...t, ordreItems: nyItems }))
@@ -1158,8 +1278,12 @@ function AppInnhold() {
                 onOppdaterProsjekt={oppdaterAktivtProsjekt}
                 onByttModus={byttModus}
                 onApneFullQA={() => {
-                  byttModus('full');
-                  setVisning({ type: 'qa_port' });
+                  if (authSession.user.rolle === 'mester_admin') {
+                    byttModus('full');
+                    setVisning({ type: 'qa_port' });
+                  } else {
+                    melding('🔒 Saken er overført til Mester & Ingeniør for teknisk kontroll og TEK17-sikring.');
+                  }
                 }}
                 melding={melding}
               />
@@ -1395,6 +1519,7 @@ function AppInnhold() {
             <Agent16QAPort
               key={prosjekt.id}
               prosjekt={prosjekt}
+              companyProfile={authSession.company}
               analyse={analyse}
               qa={prosjektTilstand.qa}
               overstyringer={prosjektTilstand.overstyringer ?? {}}
@@ -1423,6 +1548,7 @@ function AppInnhold() {
             <AhlsellOrderQA
               key={prosjekt.id}
               prosjekt={prosjekt}
+              companyProfile={authSession.company}
               initialItems={prosjektTilstand.ordreItems}
               onOppdaterOrdreItems={(nyItems) =>
                 oppdaterProsjektTilstand((t) => ({ ...t, ordreItems: nyItems }))
@@ -1648,6 +1774,22 @@ function AppInnhold() {
             setVisInnstillinger(true);
           }}
         />
+        </Suspense>
+      )}
+
+      {/* Bedriftsprofil & Logo Modal */}
+      {visProfilModal && authSession && (
+        <Suspense fallback={null}>
+          <CompanyProfileModal
+            company={authSession.company}
+            isOpen={visProfilModal}
+            onClose={() => setVisProfilModal(false)}
+            onProfileUpdated={(updated) => {
+              setAuthSession((prev) => (prev ? { ...prev, company: updated } : null));
+              melding(`💾 Bedriftsprofil for ${updated.firmanavn} er oppdatert!`);
+            }}
+            melding={melding}
+          />
         </Suspense>
       )}
 

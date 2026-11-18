@@ -1,4 +1,5 @@
 import type { ProsjektData } from '../data/prosjekter';
+import type { CompanyProfile } from '../lib/auth';
 import GatekeeperPanel from '../components/GatekeeperPanel';
 import AhlsellOrderQA, { type OrderItem } from '../components/AhlsellOrderQA';
 import { Kort, Knapp } from '../components/common/ui';
@@ -19,6 +20,7 @@ interface Props {
     tidspunkt: string;
     medForbehold: boolean;
   };
+  companyProfile?: CompanyProfile;
   ordreItems?: OrderItem[];
   onOppdaterOrdreItems?: (items: OrderItem[]) => void;
   onToggleQa: (id: string) => void;
@@ -41,6 +43,7 @@ export default function Agent16QAPort({
   qa,
   overstyringer = {},
   godkjent,
+  companyProfile,
   ordreItems,
   onOppdaterOrdreItems,
   onToggleQa,
@@ -454,6 +457,7 @@ export default function Agent16QAPort({
       {/* Vareuttak, Timeverk & ERP-Kalkyle */}
       <AhlsellOrderQA
         prosjekt={prosjekt}
+        companyProfile={companyProfile}
         initialItems={ordreItems}
         onOppdaterOrdreItems={onOppdaterOrdreItems}
         onApproveToPdf={(items, sum) => {

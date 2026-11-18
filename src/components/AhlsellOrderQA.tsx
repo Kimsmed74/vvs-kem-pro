@@ -13,7 +13,9 @@ import {
   ArrowUpDown,
   Coins,
 } from 'lucide-react';
-import type { ProsjektData } from '../data/prosjekter';
+import { tomtProsjekt, type ProsjektData } from '../data/prosjekter';
+import type { CompanyProfile } from '../lib/auth';
+import TilbudsPdfModal from './TilbudsPdfModal';
 
 export interface OrderItem {
   id: number;
@@ -27,6 +29,7 @@ export interface OrderItem {
 
 export interface QAProps {
   prosjekt?: ProsjektData;
+  companyProfile?: CompanyProfile;
   initialItems?: OrderItem[];
   onOppdaterOrdreItems?: (items: OrderItem[]) => void;
   onApproveToPdf?: (items: OrderItem[], sum: number) => void;
@@ -366,6 +369,7 @@ export function genererQAKalkyleCSV(
 
 export function AhlsellOrderQA({
   prosjekt,
+  companyProfile,
   initialItems,
   onOppdaterOrdreItems,
   onApproveToPdf,
@@ -407,8 +411,14 @@ export function AhlsellOrderQA({
   const [systemRabattAktiv, setSystemRabattAktiv] = useState<boolean>(true);
   const [inkluderTimer, setInkluderTimer] = useState<boolean>(true);
   const [antallTimer, setAntallTimer] = useState<number>(65);
-  const [timeprisUt, setTimeprisUt] = useState<number>(1150);
-  const [timeSelvkost, setTimeSelvkost] = useState<number>(550);
+  const [timeprisUt, setTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
+  const [timeSelvkost, setTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
+  const [visTilbudsPdfModal, setVisTilbudsPdfModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (companyProfile?.timeprisUt) setTimeprisUt(companyProfile.timeprisUt);
+    if (companyProfile?.timeSelvkost) setTimeSelvkost(companyProfile.timeSelvkost);
+  }, [companyProfile?.timeprisUt, companyProfile?.timeSelvkost]);
 
   // Ny varepost skjema-state
   const [visNyVare, setVisNyVare] = useState<boolean>(false);
@@ -916,18 +926,34 @@ export function AhlsellOrderQA({
           >
             <Download className="h-4 w-4" /> Ahlsell M3 Hurtigordre
           </button>
-          {onApproveToPdf && (
-            <button
-              type="button"
-              onClick={() => onApproveToPdf(items, totalTilbudssumEksMva)}
-              title="Godkjenn og generer A4 Tilbuds-PDF"
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-lg transition hover:bg-emerald-500"
-            >
-              <Sparkles className="h-4 w-4" /> A4 Tilbuds-PDF
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setVisTilbudsPdfModal(true);
+              onApproveToPdf?.(items, totalTilbudssumEksMva);
+            }}
+            title="Godkjenn og generer A4 Tilbuds-PDF"
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-lg transition hover:bg-emerald-500"
+          >
+            <Sparkles className="h-4 w-4" /> A4 Tilbuds-PDF
+          </button>
         </div>
       </div>
+
+      {visTilbudsPdfModal && (
+        <TilbudsPdfModal
+          prosjekt={prosjekt ?? tomtProsjekt('temp')}
+          items={items}
+          company={companyProfile}
+          antallTimer={inkluderTimer ? antallTimer : 0}
+          timeprisUt={timeprisUt}
+          systemRabattAktiv={systemRabattAktiv}
+          prosjektType="rehab"
+          isOpen={visTilbudsPdfModal}
+          onClose={() => setVisTilbudsPdfModal(false)}
+          melding={melding ?? (() => {})}
+        />
+      )}
     </div>
   );
 }
