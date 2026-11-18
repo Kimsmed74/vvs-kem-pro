@@ -29,9 +29,12 @@ import {
 } from './lib/filer';
 import {
   beregnUtpris,
-  csvFelt,
-  csvTekst,
   INITIAL_ORDER_DATA,
+  NRF_VAREKATALOG,
+  synkroniserOrdreMedProsjekt,
+  genererAhlsellM3CSV,
+  genererTripletexCSV,
+  genererHolteSmartKalkCSV,
   type OrderItem,
 } from './components/AhlsellOrderQA';
 import { lastNedTekst } from './lib/format';
@@ -70,36 +73,13 @@ export default function RorleggerExpressView({
 
   // Vareliste for tilbudet (synkronisert mot prosjekt / INITIAL_ORDER_DATA)
   const [items, setItems] = useState<OrderItem[]>(() => {
-    if (prosjekt.sanitaerUtstyr) {
-      return INITIAL_ORDER_DATA.map((item) => {
-        if (item.nrf === '6190013' && prosjekt.sanitaerUtstyr?.wc?.antall !== undefined) {
-          return { ...item, antall: prosjekt.sanitaerUtstyr.wc.antall };
-        }
-        if (item.nrf === '4290154' && prosjekt.sanitaerUtstyr?.servant?.antall !== undefined) {
-          return { ...item, antall: prosjekt.sanitaerUtstyr.servant.antall };
-        }
-        return item;
-      });
-    }
-    return INITIAL_ORDER_DATA;
+    return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
   });
 
-  // Synkroniser vareliste hvis prosjektets sanitærutstyr oppdateres via fil
+  // Synkroniser vareliste hvis prosjektets sanitærutstyr eller varmeanlegg oppdateres via fil
   useEffect(() => {
-    if (prosjekt.sanitaerUtstyr) {
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.nrf === '6190013' && prosjekt.sanitaerUtstyr?.wc?.antall !== undefined) {
-            return { ...item, antall: prosjekt.sanitaerUtstyr.wc.antall };
-          }
-          if (item.nrf === '4290154' && prosjekt.sanitaerUtstyr?.servant?.antall !== undefined) {
-            return { ...item, antall: prosjekt.sanitaerUtstyr.servant.antall };
-          }
-          return item;
-        })
-      );
-    }
-  }, [prosjekt.sanitaerUtstyr]);
+    setItems((prev) => synkroniserOrdreMedProsjekt(prev, prosjekt));
+  }, [prosjekt.sanitaerUtstyr, prosjekt.varmeanlegg]);
 
   // Varehåndtering
   const [visNyVare, setVisNyVare] = useState<boolean>(false);
@@ -109,6 +89,18 @@ export default function RorleggerExpressView({
   const [nyEnhet, setNyEnhet] = useState<string>('stk');
   const [nyInnpris, setNyInnpris] = useState<number>(500);
   const [nyKategori, setNyKategori] = useState<'Lokkeand' | 'Mester-tillegg'>('Mester-tillegg');
+
+  const handleNrfInput = (val: string) => {
+    setNyNrf(val);
+    const rentNrf = val.trim();
+    if (NRF_VAREKATALOG[rentNrf]) {
+      const v = NRF_VAREKATALOG[rentNrf];
+      setNyBeskrivelse(v.beskrivelse);
+      setNyEnhet(v.enhet);
+      setNyInnpris(v.innpris);
+      setNyKategori(v.kategori);
+    }
+  };
 
   // E-post & tilbudstekst modaler/kopiering
   const [visTilbudBrevModal, setVisTilbudBrevModal] = useState<boolean>(false);
@@ -325,57 +317,35 @@ ${bedriftsNavn}`;
 
   // CSV-eksportfunksjoner
   const eksporterCsvM3 = () => {
-    const linjer = [
-      'NRF;Antall',
-      ...items.filter((i) => i.antall > 0).map((i) => `${csvFelt(i.nrf)};${i.antall}`),
-    ];
-    lastNedTekst('Ahlsell_M3_Hurtigordre.csv', '\uFEFF' + linjer.join('\n'));
+    const csv = genererAhlsellM3CSV(items);
+    lastNedTekst('Ahlsell_M3_Hurtigordre.csv', '\uFEFF' + csv);
     melding('📦 Ahlsell M3 hurtigordre CSV lastet ned!');
   };
 
   const eksporterCsvTripletex = () => {
-    const rader = items
-      .filter((i) => i.antall > 0)
-      .map((i) => {
-        const ut = beregnUtpris(i.innpris, i.kategori);
-        return `${csvFelt(i.nrf)};${csvTekst(i.beskrivelse)};${i.antall};${csvFelt(i.enhet)};${i.innpris};${ut};3`;
-      });
-    if (antallTimer > 0) {
-      rader.push(
-        `TIME-VVS;${csvTekst('Rørleggertimer / Montering')};${antallTimer};timer;${timeSelvkost};${timeprisUt};3`
-      );
-    }
-    if (systemRabattAktiv && rabattBelop > 0) {
-      rader.push(
-        `RABATT-SYS;${csvTekst('5 % Samlet Systempakke-rabatt (Kirsebærplukker-skjold)')};1;stk;0;-${rabattBelop};3`
-      );
-    }
-    const csv =
-      'Produktnummer;Produktnavn;Antall;Enhet;Innkjøpspris;Utsalgspris;Mva-kode\n' + rader.join('\n');
+    const csv = genererTripletexCSV(
+      items,
+      antallTimer,
+      timeSelvkost,
+      timeprisUt,
+      true,
+      systemRabattAktiv,
+      rabattBelop
+    );
     lastNedTekst('Tripletex_Tilbudsimport.csv', '\uFEFF' + csv);
     melding('💻 Tripletex CSV-fil lastet ned!');
   };
 
   const eksporterCsvHolte = () => {
-    const rader = items
-      .filter((i) => i.antall > 0)
-      .map((i, idx) => {
-        const ut = beregnUtpris(i.innpris, i.kategori);
-        const postnr = `31.${String(idx + 1).padStart(2, '0')}`;
-        return `${postnr};${csvFelt(i.nrf)};${csvTekst(i.beskrivelse)};${i.antall};${csvFelt(i.enhet)};${i.innpris};${ut};${ut * i.antall}`;
-      });
-    if (antallTimer > 0) {
-      rader.push(
-        `31.90;TIME-VVS;${csvTekst('Rørleggertimer / Montering')};${antallTimer};timer;${timeSelvkost};${timeprisUt};${timerSum}`
-      );
-    }
-    if (systemRabattAktiv && rabattBelop > 0) {
-      rader.push(
-        `31.99;RABATT;${csvTekst('5 % Samlet Systempakke-rabatt (Kirsebærplukker-skjold)')};1;stk;0;-${rabattBelop};-${rabattBelop}`
-      );
-    }
-    const csv =
-      'Postnr;NRF;Beskrivelse;Mengde;Enhet;Kostpris;Salgspris;Sum_Salg\n' + rader.join('\n');
+    const csv = genererHolteSmartKalkCSV(
+      items,
+      antallTimer,
+      timeSelvkost,
+      timeprisUt,
+      true,
+      systemRabattAktiv,
+      rabattBelop
+    );
     lastNedTekst('Holte_SmartKalk_Import.csv', '\uFEFF' + csv);
     melding('💻 Holte SmartKalk CSV-fil lastet ned!');
   };
@@ -744,11 +714,19 @@ ${bedriftsNavn}`;
                     <label className="block text-slate-400 mb-1">NRF-nummer</label>
                     <input
                       type="text"
-                      placeholder="f.eks. 5083703"
+                      list="nrf-katalog-forslag-express"
+                      placeholder="f.eks. 5083705"
                       value={nyNrf}
-                      onChange={(e) => setNyNrf(e.target.value)}
+                      onChange={(e) => handleNrfInput(e.target.value)}
                       className="w-full rounded border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-white"
                     />
+                    <datalist id="nrf-katalog-forslag-express">
+                      {Object.entries(NRF_VAREKATALOG).map(([nr, item]) => (
+                        <option key={nr} value={nr}>
+                          {item.beskrivelse} ({item.innpris} kr, {item.kategori})
+                        </option>
+                      ))}
+                    </datalist>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-slate-400 mb-1">Varebeskrivelse</label>

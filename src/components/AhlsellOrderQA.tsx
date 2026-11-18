@@ -33,16 +33,204 @@ export interface QAProps {
   onLukk?: () => void;
 }
 
+/**
+ * Offisielt NRF Vareoppslagsverk for VVS KEM PRO
+ * Standardiserte NRF-produkter med teknisk beskrivelse, grossist-innpris og margin-kategori
+ */
+export const NRF_VAREKATALOG: Record<
+  string,
+  { beskrivelse: string; enhet: string; innpris: number; kategori: 'Lokkeand' | 'Mester-tillegg' }
+> = {
+  '6190013': {
+    beskrivelse: 'Geberit Duofix Vegghengt WC-sisterne komplett',
+    enhet: 'stk',
+    innpris: 3800,
+    kategori: 'Lokkeand',
+  },
+  '4290154': {
+    beskrivelse: 'Porsgrund Glow Servant med underskap',
+    enhet: 'stk',
+    innpris: 4200,
+    kategori: 'Lokkeand',
+  },
+  '8361001': {
+    beskrivelse: 'Luft-vann varmepumpe 8kW systempakke',
+    enhet: 'stk',
+    innpris: 62000,
+    kategori: 'Lokkeand',
+  },
+  '5083705': {
+    beskrivelse: 'Roth MultiPex rør-i-rør 20mm (Hovedledning inntak/fordeler)',
+    enhet: 'm',
+    innpris: 54,
+    kategori: 'Mester-tillegg',
+  },
+  '5083703': {
+    beskrivelse: 'Roth MultiPex rør-i-rør 16mm (Tappevannskurser)',
+    enhet: 'm',
+    innpris: 38,
+    kategori: 'Mester-tillegg',
+  },
+  '8370003': {
+    beskrivelse: 'Roth X-PERT S5 gulvvarmerør 16x2.0mm diffusjonstett',
+    enhet: 'm',
+    innpris: 24,
+    kategori: 'Mester-tillegg',
+  },
+  '5118712': {
+    beskrivelse: 'Roth fordelerskap universal 550mm komplett m/ramme og dør',
+    enhet: 'stk',
+    innpris: 3450,
+    kategori: 'Mester-tillegg',
+  },
+  '5118805': {
+    beskrivelse: 'Roth QuickBox veggboks 16mm x 1/2"',
+    enhet: 'stk',
+    innpris: 295,
+    kategori: 'Mester-tillegg',
+  },
+  '5621414': {
+    beskrivelse: 'Cimberio kuleventil 3/4" m/hendel (Hovedavstengning)',
+    enhet: 'stk',
+    innpris: 320,
+    kategori: 'Mester-tillegg',
+  },
+  '5621404': {
+    beskrivelse: 'Cimberio kuleventil 1/2" m/hendel (Avstengningsventil kurser)',
+    enhet: 'stk',
+    innpris: 195,
+    kategori: 'Mester-tillegg',
+  },
+  '2213316': {
+    beskrivelse: 'Wavin AS+ Støydempet avløpsrør 110x1000mm',
+    enhet: 'stk',
+    innpris: 410,
+    kategori: 'Mester-tillegg',
+  },
+  '2213233': {
+    beskrivelse: 'Wavin AS+ Støydempet avløpsrør 75x1000mm',
+    enhet: 'stk',
+    innpris: 310,
+    kategori: 'Mester-tillegg',
+  },
+  '2213133': {
+    beskrivelse: 'Wavin AS+ Støydempet avløpsrør 50x1000mm',
+    enhet: 'stk',
+    innpris: 220,
+    kategori: 'Mester-tillegg',
+  },
+  '2213346': {
+    beskrivelse: 'Wavin AS+ Avløpsbend 110mm 45°',
+    enhet: 'stk',
+    innpris: 185,
+    kategori: 'Mester-tillegg',
+  },
+  '2213253': {
+    beskrivelse: 'Wavin AS+ Avløpsbend 75mm 45°',
+    enhet: 'stk',
+    innpris: 145,
+    kategori: 'Mester-tillegg',
+  },
+  '2213166': {
+    beskrivelse: 'Wavin AS+ Avløpsbend 50mm 87.5°',
+    enhet: 'stk',
+    innpris: 115,
+    kategori: 'Mester-tillegg',
+  },
+  '2213153': {
+    beskrivelse: 'Wavin AS+ Avløpsbend 50mm 45°',
+    enhet: 'stk',
+    innpris: 110,
+    kategori: 'Mester-tillegg',
+  },
+  '5083812': {
+    beskrivelse: 'Rørklammer med gummiinnlegg (RSK) 16-20mm M8',
+    enhet: 'stk',
+    innpris: 42,
+    kategori: 'Mester-tillegg',
+  },
+  '2213914': {
+    beskrivelse: 'Avløpsklammer med gummiinnlegg 110mm M8/M10',
+    enhet: 'stk',
+    innpris: 78,
+    kategori: 'Mester-tillegg',
+  },
+  '8370781': {
+    beskrivelse: 'Roth Touchline SL 8-kanals trådløs romtermostatsentral',
+    enhet: 'stk',
+    innpris: 4950,
+    kategori: 'Mester-tillegg',
+  },
+  '5648184': {
+    beskrivelse: 'Waterguard+ sentral med trådløse sensorer & magnetventil',
+    enhet: 'stk',
+    innpris: 5400,
+    kategori: 'Mester-tillegg',
+  },
+};
+
+/**
+ * 100 % Komplett materiellflyt for enebolig (TP-01)
+ * Fra inntak, hovedledning, fordelerskap og rør-i-rør til sanitærutstyr, avløp og festemateriell.
+ */
 export const INITIAL_ORDER_DATA: OrderItem[] = [
   { id: 1, nrf: '6190013', beskrivelse: 'Geberit Duofix Vegghengt WC-sisterne komplett', antall: 3, enhet: 'stk', innpris: 3800, kategori: 'Lokkeand' },
   { id: 2, nrf: '4290154', beskrivelse: 'Porsgrund Glow Servant med underskap', antall: 2, enhet: 'stk', innpris: 4200, kategori: 'Lokkeand' },
-  { id: 3, nrf: '5083703', beskrivelse: 'Roth MultiPex rør-i-rør 16mm', antall: 75, enhet: 'm', innpris: 38, kategori: 'Mester-tillegg' },
-  { id: 4, nrf: '5118805', beskrivelse: 'Roth QuickBox veggboks 16mm x 1/2"', antall: 8, enhet: 'stk', innpris: 295, kategori: 'Mester-tillegg' },
-  { id: 5, nrf: '2213316', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 110x1000mm', antall: 8, enhet: 'stk', innpris: 410, kategori: 'Mester-tillegg' },
-  { id: 6, nrf: '8361001', beskrivelse: 'Luft-vann varmepumpe 8kW systempakke', antall: 1, enhet: 'stk', innpris: 62000, kategori: 'Lokkeand' },
-  { id: 7, nrf: '8370781', beskrivelse: 'Roth Touchline SL 8-kanals sentral', antall: 1, enhet: 'stk', innpris: 4950, kategori: 'Mester-tillegg' },
-  { id: 8, nrf: '5648184', beskrivelse: 'Waterguard+ sentral med trådløse sensorer', antall: 1, enhet: 'stk', innpris: 5400, kategori: 'Mester-tillegg' }
+  { id: 3, nrf: '8361001', beskrivelse: 'Luft-vann varmepumpe 8kW systempakke', antall: 1, enhet: 'stk', innpris: 62000, kategori: 'Lokkeand' },
+  { id: 4, nrf: '5083705', beskrivelse: 'Roth MultiPex rør-i-rør 20mm (Hovedledning inntak/fordeler)', antall: 15, enhet: 'm', innpris: 54, kategori: 'Mester-tillegg' },
+  { id: 5, nrf: '5083703', beskrivelse: 'Roth MultiPex rør-i-rør 16mm (Tappevannskurser)', antall: 75, enhet: 'm', innpris: 38, kategori: 'Mester-tillegg' },
+  { id: 6, nrf: '8370003', beskrivelse: 'Roth X-PERT S5 gulvvarmerør 16x2.0mm diffusjonstett', antall: 120, enhet: 'm', innpris: 24, kategori: 'Mester-tillegg' },
+  { id: 7, nrf: '5118712', beskrivelse: 'Roth fordelerskap universal 550mm komplett m/ramme og dør', antall: 1, enhet: 'stk', innpris: 3450, kategori: 'Mester-tillegg' },
+  { id: 8, nrf: '5118805', beskrivelse: 'Roth QuickBox veggboks 16mm x 1/2"', antall: 8, enhet: 'stk', innpris: 295, kategori: 'Mester-tillegg' },
+  { id: 9, nrf: '5621414', beskrivelse: 'Cimberio kuleventil 3/4" m/hendel (Hovedavstengning)', antall: 2, enhet: 'stk', innpris: 320, kategori: 'Mester-tillegg' },
+  { id: 10, nrf: '5621404', beskrivelse: 'Cimberio kuleventil 1/2" m/hendel (Avstengningsventil kurser)', antall: 4, enhet: 'stk', innpris: 195, kategori: 'Mester-tillegg' },
+  { id: 11, nrf: '2213316', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 110x1000mm', antall: 8, enhet: 'stk', innpris: 410, kategori: 'Mester-tillegg' },
+  { id: 12, nrf: '2213233', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 75x1000mm', antall: 6, enhet: 'stk', innpris: 310, kategori: 'Mester-tillegg' },
+  { id: 13, nrf: '2213133', beskrivelse: 'Wavin AS+ Støydempet avløpsrør 50x1000mm', antall: 5, enhet: 'stk', innpris: 220, kategori: 'Mester-tillegg' },
+  { id: 14, nrf: '2213346', beskrivelse: 'Wavin AS+ Avløpsbend 110mm 45°', antall: 4, enhet: 'stk', innpris: 185, kategori: 'Mester-tillegg' },
+  { id: 15, nrf: '2213253', beskrivelse: 'Wavin AS+ Avløpsbend 75mm 45°', antall: 4, enhet: 'stk', innpris: 145, kategori: 'Mester-tillegg' },
+  { id: 16, nrf: '2213166', beskrivelse: 'Wavin AS+ Avløpsbend 50mm 87.5°', antall: 4, enhet: 'stk', innpris: 115, kategori: 'Mester-tillegg' },
+  { id: 17, nrf: '2213153', beskrivelse: 'Wavin AS+ Avløpsbend 50mm 45°', antall: 4, enhet: 'stk', innpris: 110, kategori: 'Mester-tillegg' },
+  { id: 18, nrf: '5083812', beskrivelse: 'Rørklammer med gummiinnlegg (RSK) 16-20mm M8', antall: 30, enhet: 'stk', innpris: 42, kategori: 'Mester-tillegg' },
+  { id: 19, nrf: '2213914', beskrivelse: 'Avløpsklammer med gummiinnlegg 110mm M8/M10', antall: 8, enhet: 'stk', innpris: 78, kategori: 'Mester-tillegg' },
+  { id: 20, nrf: '8370781', beskrivelse: 'Roth Touchline SL 8-kanals trådløs romtermostatsentral', antall: 1, enhet: 'stk', innpris: 4950, kategori: 'Mester-tillegg' },
+  { id: 21, nrf: '5648184', beskrivelse: 'Waterguard+ sentral med trådløse sensorer & magnetventil', antall: 1, enhet: 'stk', innpris: 5400, kategori: 'Mester-tillegg' }
 ];
+
+/**
+ * Synkroniserer vareuttaket med prosjektdata (f.eks. sanitærutstyr og gulvvarmeareal)
+ */
+export function synkroniserOrdreMedProsjekt(
+  baseItems: OrderItem[] = INITIAL_ORDER_DATA,
+  prosjekt?: ProsjektData
+): OrderItem[] {
+  if (!prosjekt) return baseItems;
+  return baseItems.map((item) => {
+    // Sanitærutstyr: WC
+    if (item.nrf === '6190013' && prosjekt.sanitaerUtstyr?.wc?.antall !== undefined) {
+      return { ...item, antall: Math.max(0, prosjekt.sanitaerUtstyr.wc.antall) };
+    }
+    // Sanitærutstyr: Servant
+    if (item.nrf === '4290154' && prosjekt.sanitaerUtstyr?.servant?.antall !== undefined) {
+      return { ...item, antall: Math.max(0, prosjekt.sanitaerUtstyr.servant.antall) };
+    }
+    // QuickBox Veggbokser: Dynamisk oppdatering hvis sanitærutstyr finnes
+    if (item.nrf === '5118805' && prosjekt.sanitaerUtstyr) {
+      const wc = prosjekt.sanitaerUtstyr.wc?.antall ?? 3;
+      const servant = prosjekt.sanitaerUtstyr.servant?.antall ?? 2;
+      const dusj = prosjekt.sanitaerUtstyr.dusj?.antall ?? 1;
+      const sumBokser = (wc * 1) + (servant * 2) + (dusj * 2);
+      if (sumBokser > 0) {
+        return { ...item, antall: sumBokser };
+      }
+    }
+    // Gulvvarmerør: 5 m rør per m² gulvvarme hvis definert
+    if (item.nrf === '8370003' && prosjekt.varmeanlegg?.gulvvarmeM2 && prosjekt.varmeanlegg.gulvvarmeM2 > 0) {
+      return { ...item, antall: Math.round(prosjekt.varmeanlegg.gulvvarmeM2 * 5) };
+    }
+    return item;
+  });
+}
 
 /**
  * Beregner utpris basert på faglig kalkulasjon:
@@ -73,6 +261,108 @@ export function csvTekst(val: string): string {
   return `"${str.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Ahlsell M3 Hurtigordre CSV format:
+ * NRF;Antall
+ */
+export function genererAhlsellM3CSV(items: OrderItem[]): string {
+  const linjer = [
+    'NRF;Antall',
+    ...items.filter((i) => i.antall > 0).map((i) => `${csvFelt(i.nrf)};${i.antall}`),
+  ];
+  return linjer.join('\n');
+}
+
+/**
+ * Tripletex VVS Tilbudsimport CSV format:
+ * Produktnummer;Produktnavn;Antall;Enhet;Innkjøpspris;Utsalgspris;Mva-kode
+ */
+export function genererTripletexCSV(
+  items: OrderItem[],
+  antallTimer = 0,
+  timeSelvkost = 550,
+  timeprisUt = 1150,
+  inkluderTimer = true,
+  systemRabattAktiv = true,
+  rabattBelop = 0
+): string {
+  const rader = items
+    .filter((i) => i.antall > 0)
+    .map((i) => {
+      const ut = beregnUtpris(i.innpris, i.kategori);
+      return `${csvFelt(i.nrf)};${csvTekst(i.beskrivelse)};${i.antall};${csvFelt(i.enhet)};${i.innpris};${ut};3`;
+    });
+  if (inkluderTimer && antallTimer > 0) {
+    rader.push(
+      `TIME-VVS;${csvTekst('Rørleggertimer / Montering')};${antallTimer};timer;${timeSelvkost};${timeprisUt};3`
+    );
+  }
+  if (systemRabattAktiv && rabattBelop > 0) {
+    rader.push(
+      `RABATT-SYS;${csvTekst('5 % Samlet Systempakke-rabatt (Kirsebærplukker-skjold)')};1;stk;0;-${rabattBelop};3`
+    );
+  }
+  return 'Produktnummer;Produktnavn;Antall;Enhet;Innkjøpspris;Utsalgspris;Mva-kode\n' + rader.join('\n');
+}
+
+/**
+ * Holte SmartKalk Import CSV format (NS 3420 kapittel 31):
+ * Postnr;NRF;Beskrivelse;Mengde;Enhet;Kostpris;Salgspris;Sum_Salg
+ */
+export function genererHolteSmartKalkCSV(
+  items: OrderItem[],
+  antallTimer = 0,
+  timeSelvkost = 550,
+  timeprisUt = 1150,
+  inkluderTimer = true,
+  systemRabattAktiv = true,
+  rabattBelop = 0
+): string {
+  const rader = items
+    .filter((i) => i.antall > 0)
+    .map((i, idx) => {
+      const ut = beregnUtpris(i.innpris, i.kategori);
+      const postnr = `31.${String(idx + 1).padStart(2, '0')}`;
+      return `${postnr};${csvFelt(i.nrf)};${csvTekst(i.beskrivelse)};${i.antall};${csvFelt(i.enhet)};${i.innpris};${ut};${ut * i.antall}`;
+    });
+  if (inkluderTimer && antallTimer > 0) {
+    const timerSalgTotal = antallTimer * timeprisUt;
+    rader.push(
+      `31.90;TIME-VVS;${csvTekst('Rørleggertimer / Montering')};${antallTimer};timer;${timeSelvkost};${timeprisUt};${timerSalgTotal}`
+    );
+  }
+  if (systemRabattAktiv && rabattBelop > 0) {
+    rader.push(
+      `31.99;RABATT;${csvTekst('5 % Samlet Systempakke-rabatt (Kirsebærplukker-skjold)')};1;stk;0;-${rabattBelop};-${rabattBelop}`
+    );
+  }
+  return 'Postnr;NRF;Beskrivelse;Mengde;Enhet;Kostpris;Salgspris;Sum_Salg\n' + rader.join('\n');
+}
+
+/**
+ * Intern QA-kalkyle med full oversikt over dekningsgrader og marginer
+ */
+export function genererQAKalkyleCSV(
+  items: OrderItem[],
+  antallTimer = 0,
+  timeSelvkost = 550,
+  timeprisUt = 1150,
+  inkluderTimer = true
+): string {
+  const rader = items.map((i) => {
+    const ut = beregnUtpris(i.innpris, i.kategori);
+    const dg = ut > 0 ? (((ut - i.innpris) / ut) * 100).toFixed(1) : '0.0';
+    return `${csvFelt(i.nrf)};${i.antall};${csvTekst(i.beskrivelse)};${csvFelt(i.kategori)};${i.innpris};${ut};${i.innpris * i.antall};${ut * i.antall};${dg}%`;
+  });
+  if (inkluderTimer && antallTimer > 0) {
+    const timeDG = timeprisUt > 0 ? (((timeprisUt - timeSelvkost) / timeprisUt) * 100).toFixed(1) : '0.0';
+    rader.push(
+      `TIME-VVS;${antallTimer};${csvTekst('Rørleggertimer / Montering')};Timeverk;${timeSelvkost};${timeprisUt};${antallTimer * timeSelvkost};${antallTimer * timeprisUt};${timeDG}%`
+    );
+  }
+  return 'NRF;Antall;Beskrivelse;Kategori;Enhetspris_Inn;Enhetspris_Ut;Total_Inn;Total_Ut;DG_Prosent\n' + rader.join('\n');
+}
+
 export function AhlsellOrderQA({
   prosjekt,
   initialItems,
@@ -82,37 +372,13 @@ export function AhlsellOrderQA({
 }: QAProps) {
   const [items, setItems] = useState<OrderItem[]>(() => {
     if (initialItems && initialItems.length > 0) return initialItems;
-    // Synkroniser mengder fra prosjekt hvis tilgjengelig (f.eks. sanitærutstyr)
-    if (prosjekt?.sanitaerUtstyr) {
-      return INITIAL_ORDER_DATA.map((item) => {
-        if (item.nrf === '6190013' && prosjekt.sanitaerUtstyr?.wc?.antall !== undefined) {
-          return { ...item, antall: prosjekt.sanitaerUtstyr.wc.antall };
-        }
-        if (item.nrf === '4290154' && prosjekt.sanitaerUtstyr?.servant?.antall !== undefined) {
-          return { ...item, antall: prosjekt.sanitaerUtstyr.servant.antall };
-        }
-        return item;
-      });
-    }
-    return INITIAL_ORDER_DATA;
+    return synkroniserOrdreMedProsjekt(INITIAL_ORDER_DATA, prosjekt);
   });
 
   // Hvis prosjektet endres utenfra, oppdater relevante mengder
   useEffect(() => {
-    if (prosjekt?.sanitaerUtstyr) {
-      setItems((prev) =>
-        prev.map((item) => {
-          if (item.nrf === '6190013' && prosjekt.sanitaerUtstyr?.wc?.antall !== undefined) {
-            return { ...item, antall: prosjekt.sanitaerUtstyr.wc.antall };
-          }
-          if (item.nrf === '4290154' && prosjekt.sanitaerUtstyr?.servant?.antall !== undefined) {
-            return { ...item, antall: prosjekt.sanitaerUtstyr.servant.antall };
-          }
-          return item;
-        })
-      );
-    }
-  }, [prosjekt?.sanitaerUtstyr]);
+    setItems((prev) => synkroniserOrdreMedProsjekt(prev, prosjekt));
+  }, [prosjekt?.sanitaerUtstyr, prosjekt?.varmeanlegg]);
 
   const [systemRabattAktiv, setSystemRabattAktiv] = useState<boolean>(true);
   const [inkluderTimer, setInkluderTimer] = useState<boolean>(true);
@@ -128,6 +394,18 @@ export function AhlsellOrderQA({
   const [nyEnhet, setNyEnhet] = useState<string>('stk');
   const [nyInnpris, setNyInnpris] = useState<number>(500);
   const [nyKategori, setNyKategori] = useState<'Lokkeand' | 'Mester-tillegg'>('Mester-tillegg');
+
+  const handleNrfInput = (val: string) => {
+    setNyNrf(val);
+    const rentNrf = val.trim();
+    if (NRF_VAREKATALOG[rentNrf]) {
+      const v = NRF_VAREKATALOG[rentNrf];
+      setNyBeskrivelse(v.beskrivelse);
+      setNyEnhet(v.enhet);
+      setNyInnpris(v.innpris);
+      setNyKategori(v.kategori);
+    }
+  };
 
   const handleQuantityChange = (id: number, nyttAntall: string) => {
     const parsed = parseInt(nyttAntall, 10);
@@ -214,70 +492,32 @@ export function AhlsellOrderQA({
     let filnavn = 'eksport.csv';
 
     if (format === 'm3') {
-      csvInnhold =
-        'NRF;Antall\n' +
-        items
-          .filter((i) => i.antall > 0)
-          .map((i) => `${csvFelt(i.nrf)};${i.antall}`)
-          .join('\n');
+      csvInnhold = genererAhlsellM3CSV(items);
       filnavn = 'Ahlsell_M3_Hurtigordre.csv';
     } else if (format === 'tripletex') {
-      const rader = items
-        .filter((i) => i.antall > 0)
-        .map((i) => {
-          const ut = beregnUtpris(i.innpris, i.kategori);
-          return `${csvFelt(i.nrf)};${csvTekst(i.beskrivelse)};${i.antall};${csvFelt(i.enhet)};${i.innpris};${ut};3`;
-        });
-      if (inkluderTimer && antallTimer > 0) {
-        rader.push(
-          `TIME-VVS;${csvTekst('Rørleggertimer / Montering')};${antallTimer};timer;${timeSelvkost};${timeprisUt};3`
-        );
-      }
-      if (systemRabattAktiv && rabattBelop > 0) {
-        rader.push(
-          `RABATT-SYS;${csvTekst('5 % Samlet Systempakke-rabatt (Kirsebærplukker-skjold)')};1;stk;0;-${rabattBelop};3`
-        );
-      }
-      csvInnhold =
-        'Produktnummer;Produktnavn;Antall;Enhet;Innkjøpspris;Utsalgspris;Mva-kode\n' +
-        rader.join('\n');
+      csvInnhold = genererTripletexCSV(
+        items,
+        antallTimer,
+        timeSelvkost,
+        timeprisUt,
+        inkluderTimer,
+        systemRabattAktiv,
+        rabattBelop
+      );
       filnavn = 'Tripletex_Tilbudsimport.csv';
     } else if (format === 'holte') {
-      const rader = items
-        .filter((i) => i.antall > 0)
-        .map((i, idx) => {
-          const ut = beregnUtpris(i.innpris, i.kategori);
-          const postnr = `31.${String(idx + 1).padStart(2, '0')}`;
-          return `${postnr};${csvFelt(i.nrf)};${csvTekst(i.beskrivelse)};${i.antall};${csvFelt(i.enhet)};${i.innpris};${ut};${ut * i.antall}`;
-        });
-      if (inkluderTimer && antallTimer > 0) {
-        rader.push(
-          `31.90;TIME-VVS;${csvTekst('Rørleggertimer / Montering')};${antallTimer};timer;${timeSelvkost};${timeprisUt};${timerSalgTotal}`
-        );
-      }
-      if (systemRabattAktiv && rabattBelop > 0) {
-        rader.push(
-          `31.99;RABATT;${csvTekst('5 % Samlet Systempakke-rabatt (Kirsebærplukker-skjold)')};1;stk;0;-${rabattBelop};-${rabattBelop}`
-        );
-      }
-      csvInnhold =
-        'Postnr;NRF;Beskrivelse;Mengde;Enhet;Kostpris;Salgspris;Sum_Salg\n' + rader.join('\n');
+      csvInnhold = genererHolteSmartKalkCSV(
+        items,
+        antallTimer,
+        timeSelvkost,
+        timeprisUt,
+        inkluderTimer,
+        systemRabattAktiv,
+        rabattBelop
+      );
       filnavn = 'Holte_SmartKalk_Import.csv';
     } else {
-      const rader = items.map((i) => {
-        const ut = beregnUtpris(i.innpris, i.kategori);
-        const dg = ut > 0 ? (((ut - i.innpris) / ut) * 100).toFixed(1) : '0.0';
-        return `${csvFelt(i.nrf)};${i.antall};${csvTekst(i.beskrivelse)};${csvFelt(i.kategori)};${i.innpris};${ut};${i.innpris * i.antall};${ut * i.antall};${dg}%`;
-      });
-      if (inkluderTimer && antallTimer > 0) {
-        const timeDG = timeprisUt > 0 ? (((timeprisUt - timeSelvkost) / timeprisUt) * 100).toFixed(1) : '0.0';
-        rader.push(
-          `TIME-VVS;${antallTimer};${csvTekst('Rørleggertimer / Montering')};Timeverk;${timeSelvkost};${timeprisUt};${timerKostTotal};${timerSalgTotal};${timeDG}%`
-        );
-      }
-      csvInnhold =
-        'NRF;Antall;Beskrivelse;Kategori;Enhetspris_Inn;Enhetspris_Ut;Total_Inn;Total_Ut;DG_Prosent\n' +
-        rader.join('\n');
+      csvInnhold = genererQAKalkyleCSV(items, antallTimer, timeSelvkost, timeprisUt, inkluderTimer);
       filnavn = 'QA_Kalkyle_Med_Tekst.csv';
     }
 
@@ -437,11 +677,19 @@ export function AhlsellOrderQA({
               <label className="block text-[11px] text-slate-400">NRF-nummer</label>
               <input
                 type="text"
-                placeholder="f.eks. 5083703"
+                list="nrf-katalog-forslag-qa"
+                placeholder="f.eks. 5083705"
                 value={nyNrf}
-                onChange={(e) => setNyNrf(e.target.value)}
+                onChange={(e) => handleNrfInput(e.target.value)}
                 className="mt-1 w-full rounded border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-xs text-white"
               />
+              <datalist id="nrf-katalog-forslag-qa">
+                {Object.entries(NRF_VAREKATALOG).map(([nr, item]) => (
+                  <option key={nr} value={nr}>
+                    {item.beskrivelse} ({item.innpris} kr, {item.kategori})
+                  </option>
+                ))}
+              </datalist>
             </div>
             <div className="sm:col-span-2">
               <label className="block text-[11px] text-slate-400">Offisiell varetekst</label>
