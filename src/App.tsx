@@ -53,7 +53,7 @@ import {
   type AuthSession,
 } from './lib/auth';
 import { ProjectProvider } from './context/ProjectContext';
-const AuthPortal = lazy(() => import('./AuthPortal'));
+import AuthPortal from './AuthPortal';
 const CompanyProfileModal = lazy(() => import('./CompanyProfileModal'));
 const AhlsellOrderQA = lazy(() => import('./components/AhlsellOrderQA'));
 const RorleggerExpressView = lazy(() => import('./RorleggerExpressView'));
@@ -875,23 +875,15 @@ function AppInnhold() {
   if (!authSession) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100">
-        <Suspense
-          fallback={
-            <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
-              Laster påloggingsportal…
-            </div>
-          }
-        >
-          <AuthPortal
-            onLoginSuccess={(sess) => {
-              setAuthSession(sess);
-              if (sess.user.rolle === 'rorlegger_kunde') {
-                byttModus('express');
-              }
-              melding(`Velkommen, ${sess.user.navn}! Logget inn for ${sess.company.firmanavn}.`);
-            }}
-          />
-        </Suspense>
+        <AuthPortal
+          onLoginSuccess={(sess) => {
+            setAuthSession(sess);
+            if (sess.user.rolle === 'rorlegger_kunde') {
+              byttModus('express');
+            }
+            melding(`Velkommen, ${sess.user.navn}! Logget inn for ${sess.company.firmanavn}.`);
+          }}
+        />
         {toast && (
           <div
             role="status"
