@@ -78,12 +78,13 @@ export interface ProsjektAnalyse {
 const harTall = (n: number | null | undefined): n is number => typeof n === 'number' && Number.isFinite(n);
 
 export function analyserProsjekt(p: ProsjektData, krav: number): ProsjektAnalyse {
-  const k = p.koter;
-  const flaterOk = p.overvann.flater.length > 0 && p.overvann.flater.every((f) => f.areal > 0 && harTall(f.phi));
+  const k = p.koter ?? { gulv: [], itrKum: null, ibrKum: null, vannledning: null, stikkLengde: null, fallNevner: null };
+  const overvannFlater = Array.isArray(p.overvann?.flater) ? p.overvann.flater : [];
+  const flaterOk = overvannFlater.length > 0 && overvannFlater.every((f) => f.areal > 0 && harTall(f.phi));
 
   const datasjekk: DataPunkt[] = [
     { id: 'bra', tekst: 'Oppvarmet BRA', ok: harTall(p.bra) && p.bra > 0, hint: 'Oppvarmet BRA er ikke oppgitt.' },
-    { id: 'sted', tekst: 'Adresse / sted', ok: p.sted.trim() !== '', hint: 'Adresse/sted er ikke oppgitt (trengs for VA-myndighet og tilbud).' },
+    { id: 'sted', tekst: 'Adresse / sted', ok: Boolean(p.sted && p.sted.trim() !== ''), hint: 'Adresse/sted er ikke oppgitt (trengs for VA-myndighet og tilbud).' },
     {
       id: 'matrikkel',
       tekst: 'Gnr/Bnr (matrikkel)',
@@ -91,7 +92,7 @@ export function analyserProsjekt(p: ProsjektData, krav: number): ProsjektAnalyse
       hint: 'Gnr/Bnr (matrikkel) er ikke oppgitt (står som «IKKE OPPGITT»).',
     },
     { id: 'itr', tekst: 'Kote ITR i kommunal kum', ok: harTall(k.itrKum), hint: 'VA-kart med kote for innvendig topp rør (ITR) i kommunal kum mangler – 950 mm-kontrollen kan ikke utføres.' },
-    { id: 'gulv', tekst: 'Kote laveste sluk / gulv', ok: k.gulv.length > 0, hint: 'Kote for laveste sluk/ferdig gulv (OK FG) er ikke oppgitt.' },
+    { id: 'gulv', tekst: 'Kote laveste sluk / gulv', ok: Array.isArray(k.gulv) && k.gulv.length > 0, hint: 'Kote for laveste sluk/ferdig gulv (OK FG) er ikke oppgitt.' },
     { id: 'ibr', tekst: 'Kote IBR i kommunal kum', ok: harTall(k.ibrKum), hint: 'Kote for innvendig bunn rør (IBR) i kommunal kum mangler – kote ved grunnmur kan ikke beregnes.' },
     {
       id: 'kote_vannledning',
@@ -103,30 +104,31 @@ export function analyserProsjekt(p: ProsjektData, krav: number): ProsjektAnalyse
     {
       id: 'trykk',
       tekst: 'Vanntrykk (statisk + Q/p)',
-      ok: harTall(p.vanntrykk.statiskBar) && !p.vanntrykk.antatt && harTall(p.vanntrykk.dynamiskBar) && harTall(p.vanntrykk.uttakLmin),
-      hint: p.vanntrykk.antatt
+      ok: Boolean(p.vanntrykk && harTall(p.vanntrykk.statiskBar) && !p.vanntrykk.antatt && harTall(p.vanntrykk.dynamiskBar) && harTall(p.vanntrykk.uttakLmin)),
+      hint: p.vanntrykk?.antatt
         ? 'Statisk vanntrykk er antatt – Q/p-måling (dynamisk trykk ved uttak) mangler fra vannverket.'
         : 'Vanntrykk (statisk og dynamisk ved uttak, Q/p) er ikke komplett oppgitt.',
     },
     {
       id: 'overvann',
       tekst: 'Overvann: flater (med φ), intensitet og påslippskrav',
-      ok: flaterOk && harTall(p.overvann.intensitet) && p.overvann.intensitet > 0 && harTall(p.overvann.maksPaaslippLs),
+      ok: Boolean(flaterOk && p.overvann && harTall(p.overvann.intensitet) && p.overvann.intensitet > 0 && harTall(p.overvann.maksPaaslippLs)),
       hint: 'Overvannsdata er ikke komplett (flater med avrenningsfaktor, dimensjonerende IVF-intensitet og kommunalt påslippskrav).',
     },
     {
       id: 'ivf_varighet',
       tekst: 'IVF-varighet og regnintensitet',
-      ok: harTall(p.overvann.intensitet) && p.overvann.intensitet > 0,
+      ok: Boolean(p.overvann && harTall(p.overvann.intensitet) && p.overvann.intensitet > 0),
       hint: 'Dimensjonerende IVF-varighet og regnintensitet er ikke oppgitt (eller 0).',
     },
   ];
 
-  const mangler = [...datasjekk.filter((d) => !d.ok).map((d) => d.hint), ...p.kjenteMangler];
+  const mangler = [...datasjekk.filter((d) => !d.ok).map((d) => d.hint), ...(p.kjenteMangler ?? [])];
 
   // Lov 2 – tilbakeslagskontroll
+  const gulvListe = Array.isArray(k.gulv) ? k.gulv : [];
   const gulvKontroller: GulvKontroll[] = harTall(k.itrKum)
-    ? k.gulv.map((g) => {
+    ? gulvListe.map((g) => {
         const m = tilbakeslagMargin(g.kote, k.itrKum as number, krav);
         return { navn: g.navn, kote: g.kote, margin: m.margin, krav, ok: m.ok, mangel: m.mangel };
       })

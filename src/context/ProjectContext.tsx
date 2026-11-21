@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { ProsjektData } from '../data/prosjekter';
 import type { ProsjektTilstand } from '../lib/lagring';
 import type { CompanyProfile } from '../lib/auth';

@@ -41,6 +41,7 @@ import {
   lastTilstand,
   nyttProsjektId,
   slettProsjektFraTilstand,
+  standardTilstand,
   tomProsjektTilstand,
   type AppTilstand,
   type Innstillinger,
@@ -50,6 +51,8 @@ import {
 import {
   hentAktivSesjon,
   loggUt,
+  DEMO_MESTER_USER,
+  DEMO_MESTER_COMPANY,
   type AuthSession,
 } from './lib/auth';
 import { ProjectProvider } from './context/ProjectContext';
@@ -101,16 +104,29 @@ export default function App() {
 
 function AppInnhold() {
   const bekreftSlett = useBekreftSlett();
-  const [authSession, setAuthSession] = useState<AuthSession | null>(() =>
-    typeof window !== 'undefined' ? hentAktivSesjon() : null
-  );
+  const [authSession, setAuthSession] = useState<AuthSession | null>(() => {
+    if (typeof window !== 'undefined') {
+      const aktiv = hentAktivSesjon();
+      if (aktiv) return aktiv;
+      // Automatisk demo-mester som standard slik at appen åpner umiddelbart uten å stoppe ved tom skjerm
+      return { user: DEMO_MESTER_USER, company: DEMO_MESTER_COMPANY };
+    }
+    return null;
+  });
   const [visProfilModal, setVisProfilModal] = useState<boolean>(false);
 
-  const [tilstand, setTilstand] = useState<AppTilstand>(() =>
-    typeof window !== 'undefined' && window.localStorage
-      ? lastTilstand(window.localStorage)
-      : { brukerProsjekter: [], aktivId: PROSJEKT_PRESETS[0].id, krav: 0.95, tilstand: {} }
-  );
+  const [tilstand, setTilstand] = useState<AppTilstand>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const innlastet = lastTilstand(window.localStorage);
+      return {
+        ...standardTilstand(),
+        ...innlastet,
+        brukerProsjekter: Array.isArray(innlastet?.brukerProsjekter) ? innlastet.brukerProsjekter : [],
+        tilstand: innlastet?.tilstand ?? {},
+      };
+    }
+    return standardTilstand();
+  });
 
   const [innstillinger, setInnstillinger] = useState<Innstillinger>(() =>
     typeof window !== 'undefined' && window.localStorage
@@ -219,11 +235,20 @@ function AppInnhold() {
           return;
         }
         setTilstand((nå) => {
+          const idbBruker = Array.isArray(idbTilstand.brukerProsjekter) ? idbTilstand.brukerProsjekter : [];
+          const nåBruker = Array.isArray(nå?.brukerProsjekter) ? nå.brukerProsjekter : [];
+          const idbTilstander = idbTilstand.tilstand ?? {};
+          const nåTilstander = nå?.tilstand ?? {};
           if (
-            idbTilstand.brukerProsjekter.length > nå.brukerProsjekter.length ||
-            Object.keys(idbTilstand.tilstand).length > Object.keys(nå.tilstand).length
+            idbBruker.length > nåBruker.length ||
+            Object.keys(idbTilstander).length > Object.keys(nåTilstander).length
           ) {
-            return idbTilstand;
+            return {
+              ...standardTilstand(),
+              ...idbTilstand,
+              brukerProsjekter: idbBruker,
+              tilstand: idbTilstander,
+            };
           }
           void lagreTilstandIDB(nå);
           return nå;
@@ -248,10 +273,11 @@ function AppInnhold() {
   }, [tilstand]);
 
   const synligePresets = useMemo(() => {
-    const skjulte = new Set(tilstand.skjultePresetIder ?? []);
-    const brukerIds = new Set(tilstand.brukerProsjekter.map((p) => p.id));
+    const skjulte = new Set(tilstand?.skjultePresetIder ?? []);
+    const brukerProsjekter = Array.isArray(tilstand?.brukerProsjekter) ? tilstand.brukerProsjekter : [];
+    const brukerIds = new Set(brukerProsjekter.map((p) => p.id));
     return PROSJEKT_PRESETS.filter((p) => !skjulte.has(p.id) && !brukerIds.has(p.id));
-  }, [tilstand.skjultePresetIder, tilstand.brukerProsjekter]);
+  }, [tilstand?.skjultePresetIder, tilstand?.brukerProsjekter]);
 
   const alleProsjekter = useMemo(
     () => hentSynligeProsjekter(tilstand),
@@ -259,7 +285,7 @@ function AppInnhold() {
   );
 
   const prosjekt: ProsjektData =
-    alleProsjekter.find((p) => p.id === tilstand.aktivId) ||
+    alleProsjekter.find((p) => p.id === tilstand?.aktivId) ||
     alleProsjekter[0] ||
     PROSJEKT_PRESETS[0];
 
@@ -274,7 +300,8 @@ function AppInnhold() {
     };
   }, [prosjekt.id]);
 
-  const prosjektTilstand = tilstand.tilstand[prosjekt.id] ?? tomProsjektTilstand();
+  const prosjektTilstand =
+    (tilstand?.tilstand && tilstand.tilstand[prosjekt.id]) ?? tomProsjektTilstand();
 
   const analyse = useMemo(
     () => analyserProsjekt(prosjekt, tilstand.krav),
@@ -367,10 +394,11 @@ function AppInnhold() {
     (oppdatert: ProsjektData, endringer?: string[]) => {
       const lagret: ProsjektData = { ...oppdatert, kilde: 'bruker' };
       setTilstand((prev) => {
-        const finnes = prev.brukerProsjekter.some((p) => p.id === lagret.id);
+        const brukerListe = Array.isArray(prev?.brukerProsjekter) ? prev.brukerProsjekter : [];
+        const finnes = brukerListe.some((p) => p.id === lagret.id);
         const brukerProsjekter = finnes
-          ? prev.brukerProsjekter.map((p) => (p.id === lagret.id ? lagret : p))
-          : [lagret, ...prev.brukerProsjekter];
+          ? brukerListe.map((p) => (p.id === lagret.id ? lagret : p))
+          : [lagret, ...brukerListe];
         return {
           ...prev,
           brukerProsjekter,
@@ -392,11 +420,12 @@ function AppInnhold() {
     ) => {
       const lagret: ProsjektData = { ...oppdatert, kilde: 'bruker' };
       setTilstand((prev) => {
-        const finnes = prev.brukerProsjekter.some((p) => p.id === lagret.id);
+        const brukerListe = Array.isArray(prev?.brukerProsjekter) ? prev.brukerProsjekter : [];
+        const finnes = brukerListe.some((p) => p.id === lagret.id);
         const brukerProsjekter = finnes
-          ? prev.brukerProsjekter.map((p) => (p.id === lagret.id ? lagret : p))
-          : [lagret, ...prev.brukerProsjekter];
-        const nåTilstand = prev.tilstand[lagret.id] ?? tomProsjektTilstand();
+          ? brukerListe.map((p) => (p.id === lagret.id ? lagret : p))
+          : [lagret, ...brukerListe];
+        const nåTilstand = (prev?.tilstand && prev.tilstand[lagret.id]) ?? tomProsjektTilstand();
         return {
           ...prev,
           brukerProsjekter,
@@ -902,7 +931,7 @@ function AppInnhold() {
       onOppdaterProsjekt={oppdaterAktivtProsjekt}
       prosjektTilstand={prosjektTilstand}
       onOppdaterProsjektTilstand={oppdaterProsjektTilstand}
-      companyProfile={authSession.company}
+      companyProfile={authSession?.company ?? DEMO_MESTER_COMPANY}
       analyse={analyse}
       melding={melding}
     >

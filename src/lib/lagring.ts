@@ -186,12 +186,14 @@ export function nyttProsjektId(): string {
 }
 
 /** Returnerer alle synlige prosjekter (ikke-slettede standard-presets + brukerprosjekter, der redigerte presets overstyrer originalen). */
-export function hentSynligeProsjekter(t: AppTilstand): ProsjektData[] {
+export function hentSynligeProsjekter(t?: AppTilstand | null): ProsjektData[] {
+  if (!t) return [...PROSJEKT_PRESETS];
   const skjulte = new Set(t.skjultePresetIder ?? []);
-  const brukerIds = new Set(t.brukerProsjekter.map((p) => p.id));
+  const brukerProsjekter = Array.isArray(t.brukerProsjekter) ? t.brukerProsjekter : [];
+  const brukerIds = new Set(brukerProsjekter.map((p) => p.id));
   return [
     ...PROSJEKT_PRESETS.filter((p) => !skjulte.has(p.id) && !brukerIds.has(p.id)),
-    ...t.brukerProsjekter,
+    ...brukerProsjekter,
   ];
 }
 
