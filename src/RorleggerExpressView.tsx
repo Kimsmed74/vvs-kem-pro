@@ -44,6 +44,7 @@ import { lastNedTekst } from './lib/format';
 import type { CompanyProfile, UserRole } from './lib/auth';
 import TilbudsPdfModal from './components/TilbudsPdfModal';
 import { useProject } from './context/ProjectContext';
+import VvsTegnebrett from './VvsTegnebrett';
 
 interface RorleggerExpressProps {
   prosjekt: ProsjektData;
@@ -101,6 +102,7 @@ export default function RorleggerExpressView({
   const [lokalTimeprisUt, setLokalTimeprisUt] = useState<number>(() => companyProfile?.timeprisUt ?? 1150);
   const [lokalTimeSelvkost, setLokalTimeSelvkost] = useState<number>(() => companyProfile?.timeSelvkost ?? 550);
   const [visTilbudsPdfModal, setVisTilbudsPdfModal] = useState<boolean>(false);
+  const [visTegnebrettModal, setVisTegnebrettModal] = useState<boolean>(false);
 
   // Aktive verdier: henter fra context hvis tilgjengelig, ellers lokal state
   const items = projectCtx ? projectCtx.vareliste : lokalItems;
@@ -671,6 +673,31 @@ ${bedriftsNavn}`;
                 </div>
               </div>
             )}
+
+            {/* Alternativ: Interaktivt VVS-Tegnebrett for rørskisse og utstyr */}
+            <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-xl border border-purple-800/60 bg-gradient-to-r from-purple-950/40 to-slate-950 p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🎨</span>
+                <div>
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>Vil du heller tegne/skisse rør og utstyr direkte?</span>
+                    <span className="rounded bg-purple-900/80 px-2 py-0.5 text-[10px] font-bold text-purple-300 border border-purple-700/50">
+                      RØRSKISSE
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Bruk tegnebrettet til å streke opp rørstrekk (kaldt, varmt, varme, avløp), plassere toaletter og fordelerskap, og få ferdig beregnede rørmeter (+15 % svinn) rett inn i tilbudet.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVisTegnebrettModal(true)}
+                className="inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-xl border border-purple-500/50 bg-purple-600 px-4 py-2 text-xs font-extrabold text-white shadow-lg hover:bg-purple-500 transition active:scale-95"
+              >
+                <span>🎨 Åpne VVS-Tegnebrett</span>
+              </button>
+            </div>
           </div>
 
           {/* Enkle valg: Prosjekttype, Bedrift og Timepris */}
@@ -1443,6 +1470,28 @@ ${bedriftsNavn}`;
           onClose={() => setVisTilbudsPdfModal(false)}
           melding={melding}
         />
+      )}
+
+      {/* VVS Tegnebrett Modal */}
+      {visTegnebrettModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-3 backdrop-blur-md">
+          <div className="relative flex max-h-[95vh] w-full max-w-6xl flex-col overflow-y-auto rounded-3xl border border-purple-500/40 bg-slate-950 p-4 shadow-2xl sm:p-6">
+            <VvsTegnebrett
+              prosjekt={prosjekt}
+              onOppdaterProsjekt={onOppdaterProsjekt}
+              onOverforTilKalkyle={(nyeVarer, oppsummering) => {
+                if (onOppdaterOrdreItems) {
+                  onOppdaterOrdreItems(nyeVarer);
+                }
+                setVisTegnebrettModal(false);
+                setAktivtSteg(2);
+                melding(`✅ ${oppsummering} Åpnet Steg 2.`);
+              }}
+              onLukk={() => setVisTegnebrettModal(false)}
+              melding={melding}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

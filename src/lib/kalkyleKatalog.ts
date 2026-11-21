@@ -147,6 +147,30 @@ export const NRF_VAREKATALOG: Record<
     innpris: 5400,
     kategori: 'Mester-tillegg',
   },
+  '3401202': {
+    beskrivelse: 'Joti K-sluk 110mm m/klemring og vannlås',
+    enhet: 'stk',
+    innpris: 890,
+    kategori: 'Mester-tillegg',
+  },
+  '8000552': {
+    beskrivelse: 'OSO Saga S 200 varmtvannsbereder 2kW/230V',
+    enhet: 'stk',
+    innpris: 9200,
+    kategori: 'Lokkeand',
+  },
+  '5648112': {
+    beskrivelse: 'FM Mattsson frostfri utekran 400mm',
+    enhet: 'stk',
+    innpris: 1650,
+    kategori: 'Mester-tillegg',
+  },
+  '5083818': {
+    beskrivelse: 'Rørklammer med gummiinnlegg (RSK) 20-25mm M8',
+    enhet: 'stk',
+    innpris: 46,
+    kategori: 'Mester-tillegg',
+  },
 
   // --- Næringsbygg & Større installasjoner ---
   '5083707': {

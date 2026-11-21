@@ -75,6 +75,7 @@ const MoteOpptaker = lazy(() => import('./components/MoteOpptaker'));
 const AgentChat = lazy(() => import('./components/AgentChat'));
 const ProsjektDashbord = lazy(() => import('./components/ProsjektDashbord'));
 const AkademiModul = lazy(() => import('./components/AkademiModul'));
+const VvsTegnebrett = lazy(() => import('./VvsTegnebrett'));
 
 type HovedVisning =
   | { type: 'veiviser' }
@@ -87,7 +88,8 @@ type HovedVisning =
   | { type: 'agent_view'; agentId: string }
   | { type: 'super_kommandoer' }
   | { type: 'qa_port' }
-  | { type: 'qa_ordre' };
+  | { type: 'qa_ordre' }
+  | { type: 'tegnebrett' };
 
 type ProsjektModalModus =
   | { modus: 'nytt'; start: ProsjektData }
@@ -188,7 +190,17 @@ function AppInnhold() {
     }
   }, [authSession?.user.rolle, appModus, byttModus]);
 
-  const [visning, setVisningState] = useState<HovedVisning>({ type: 'agent_hub' });
+  const [visning, setVisningState] = useState<HovedVisning>(() => {
+    if (typeof window !== 'undefined') {
+      const p = new URLSearchParams(window.location.search);
+      const v = p.get('view') || p.get('visning');
+      if (v === 'tegnebrett') return { type: 'tegnebrett' };
+      if (v === 'qa_ordre' || v === 'ordre') return { type: 'qa_ordre' };
+      if (v === 'qa_port' || v === 'qa') return { type: 'qa_port' };
+      if (v === 'veiviser') return { type: 'veiviser' };
+    }
+    return { type: 'agent_hub' };
+  });
   const [mobilMenyApen, setMobilMenyApen] = useState<boolean>(false);
   const [visAlleAgenterISidebar, setVisAlleAgenterISidebar] = useState<boolean>(true);
 
@@ -817,6 +829,13 @@ function AppInnhold() {
         >
           📦 Vareuttak & ERP (Ahlsell/Tripletex)
         </NavKnapp>
+        <NavKnapp
+          aktiv={visning.type === 'tegnebrett'}
+          onClick={() => setVisning({ type: 'tegnebrett' })}
+          fremhevet="purple"
+        >
+          🎨 VVS Tegnebrett & Rørskisse
+        </NavKnapp>
 
         {/* Underliste av Agenter */}
         <div className="pt-2">
@@ -1059,6 +1078,20 @@ function AppInnhold() {
                   }`}
                 >
                   🎙️ {visMoteOpptaker ? 'Skjul møteopptak' : 'Møteopptak'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setVisning({ type: 'tegnebrett' })}
+                  title="Åpne interaktivt VVS-Tegnebrett for rørskisse og utstyrssymboler"
+                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                    visning.type === 'tegnebrett'
+                      ? 'border-purple-400 bg-purple-950 text-purple-200 shadow-md ring-1 ring-purple-500'
+                      : 'border-purple-800/80 bg-purple-950/50 text-purple-300 hover:bg-purple-900/70'
+                  }`}
+                >
+                  <span>🎨</span>
+                  <span>Tegnebrett</span>
                 </button>
 
                 <button
@@ -1592,6 +1625,15 @@ function AppInnhold() {
             />
           )}
 
+          {visning.type === 'tegnebrett' && (
+            <VvsTegnebrett
+              prosjekt={prosjekt}
+              onOppdaterProsjekt={oppdaterAktivtProsjekt}
+              melding={melding}
+              onLukk={() => setVisning({ type: 'agent_hub' })}
+            />
+          )}
+
           {visning.type === 'dashbord_moduler' && (
             <ModulDashbord onVelgModul={(modulId) => setVisning({ type: 'modul', modulId })} />
           )}
@@ -1700,6 +1742,12 @@ function AppInnhold() {
               onClick={() => setVisning({ type: 'modul', modulId: 'sanitaer' })}
             >
               💧 Sanitær
+            </NavKnapp>
+            <NavKnapp
+              aktiv={visning.type === 'tegnebrett'}
+              onClick={() => setVisning({ type: 'tegnebrett' })}
+            >
+              🎨 Tegnebrett
             </NavKnapp>
           </nav>
         )}
@@ -1849,7 +1897,7 @@ function NavKnapp({
   onClick: () => void;
   children: React.ReactNode;
   dempet?: boolean;
-  fremhevet?: 'rose' | 'amber';
+  fremhevet?: 'rose' | 'amber' | 'purple';
 }) {
   return (
     <button
@@ -1861,6 +1909,8 @@ function NavKnapp({
           ? 'border-l-2 border-emerald-400 bg-emerald-950 text-emerald-300'
           : fremhevet === 'rose'
           ? 'text-rose-300 hover:bg-rose-950/40'
+          : fremhevet === 'purple'
+          ? 'text-purple-300 hover:bg-purple-950/40'
           : dempet
           ? 'text-slate-500 hover:bg-slate-900'
           : 'text-slate-300 hover:bg-slate-900'
