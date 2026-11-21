@@ -203,6 +203,8 @@ export interface ProsjektData {
   /** Manglende underlag som dokumentet selv nevner */
   kjenteMangler: string[];
   notater: string;
+  /** Befaring & Romskisse data (rom, mål, utstyr, avvik, bilder, lyd) */
+  befaring?: import('../lib/befaring').BefaringData;
 }
 
 export function tomtProsjekt(id: string): ProsjektData {
