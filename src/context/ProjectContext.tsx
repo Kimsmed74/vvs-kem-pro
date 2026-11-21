@@ -131,26 +131,56 @@ export function ProjectProvider({
   const [systemRabattAktiv, setSystemRabattAktivInternal] = useState<boolean>(true);
   const [avklartMangler, setAvklartMangler] = useState<Record<string, boolean>>({});
 
-  // Synkroniser når aktivt prosjekt endres (prosjektbytte)
-  useEffect(() => {
-    const nyType = detekterProsjektType(aktivtProsjekt);
-    setProsjektTypeInternal(nyType);
+  const forrigeProsjektRef = useRef<ProsjektData>(aktivtProsjekt);
 
-    if (prosjektTilstand?.ordreItems && prosjektTilstand.ordreItems.length > 0) {
-      setVarelisteInternal(prosjektTilstand.ordreItems);
-    } else {
+  // Synkroniser når aktivt prosjekt endres (prosjektbytte eller dataoppdatering fra fil/veiviser)
+  useEffect(() => {
+    const forrige = forrigeProsjektRef.current;
+    const erNyttProsjekt = aktivtProsjekt.id !== forrige.id;
+    const nyType = detekterProsjektType(aktivtProsjekt);
+    const typeEndret = nyType !== prosjektType;
+    const braEndret = aktivtProsjekt.bra !== forrige.bra;
+    const sanitaerEndret =
+      JSON.stringify(aktivtProsjekt.sanitaerUtstyr) !== JSON.stringify(forrige.sanitaerUtstyr);
+    const bygningEndret = aktivtProsjekt.bygningstype !== forrige.bygningstype;
+
+    forrigeProsjektRef.current = aktivtProsjekt;
+
+    if (erNyttProsjekt) {
+      setProsjektTypeInternal(nyType);
+
+      if (prosjektTilstand?.ordreItems && prosjektTilstand.ordreItems.length > 0) {
+        setVarelisteInternal(prosjektTilstand.ordreItems);
+      } else {
+        const nyVareliste = genererVarelisteForProsjekt(aktivtProsjekt, nyType);
+        setVarelisteInternal(nyVareliste);
+        onOppdaterProsjektTilstand?.((prev) => ({ ...prev, ordreItems: nyVareliste }));
+      }
+
+      setTimeverkInternal((prev) => ({
+        ...prev,
+        antallTimer: standardTimerForType(nyType, aktivtProsjekt.bra),
+        timeprisUt: companyProfile?.timeprisUt ?? prev.timeprisUt,
+        timeSelvkost: companyProfile?.timeSelvkost ?? prev.timeSelvkost,
+      }));
+    } else if (typeEndret || braEndret || sanitaerEndret || bygningEndret) {
+      setProsjektTypeInternal(nyType);
       const nyVareliste = genererVarelisteForProsjekt(aktivtProsjekt, nyType);
       setVarelisteInternal(nyVareliste);
       onOppdaterProsjektTilstand?.((prev) => ({ ...prev, ordreItems: nyVareliste }));
+      setTimeverkInternal((prev) => ({
+        ...prev,
+        antallTimer: standardTimerForType(nyType, aktivtProsjekt.bra),
+      }));
     }
-
-    setTimeverkInternal((prev) => ({
-      ...prev,
-      antallTimer: standardTimerForType(nyType, aktivtProsjekt.bra),
-      timeprisUt: companyProfile?.timeprisUt ?? prev.timeprisUt,
-      timeSelvkost: companyProfile?.timeSelvkost ?? prev.timeSelvkost,
-    }));
-  }, [aktivtProsjekt.id]);
+  }, [
+    aktivtProsjekt,
+    prosjektTilstand?.ordreItems,
+    onOppdaterProsjektTilstand,
+    companyProfile?.timeprisUt,
+    companyProfile?.timeSelvkost,
+    prosjektType,
+  ]);
 
   // Synkroniser selskapets timepriser hvis profil oppdateres
   useEffect(() => {
